@@ -1,4 +1,3 @@
-An e-commerce project with a React frontend and a Laravel backend can be summarized in a README.md file as follows:
 
 # E-commerce Project
 
