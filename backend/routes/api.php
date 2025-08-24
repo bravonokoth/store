@@ -6,11 +6,13 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\Admin\ProductController as AdminProductController;
 use App\Http\Controllers\Api\Admin\CategoryController as AdminCategoryController;
+use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
+use App\Http\Controllers\Api\Admin\MediaController as AdminMediaController;
+use App\Http\Controllers\Api\Admin\CouponController as AdminCouponController;
 
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']); // Clients only
+    Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
-
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/profile', [AuthController::class, 'profile']);
         Route::post('/logout', [AuthController::class, 'logout']);
@@ -28,6 +30,9 @@ Route::group(['prefix' => 'products'], function () {
 Route::middleware(['auth:sanctum', 'role:admin|super-admin'])->prefix('admin')->group(function () {
     Route::apiResource('products', AdminProductController::class)->except(['destroy']);
     Route::apiResource('categories', AdminCategoryController::class)->except(['destroy']);
+    Route::post('orders', [AdminOrderController::class, 'store']);
+    Route::post('media', [AdminMediaController::class, 'store']);
+    Route::post('coupons', [AdminCouponController::class, 'store']);
 });
 
 Route::middleware(['auth:sanctum', 'role:super-admin'])->prefix('admin')->group(function () {
