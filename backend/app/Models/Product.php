@@ -24,5 +24,14 @@ class Product extends Model
         return $this->morphMany(Media::class, 'model');
     }
 
+    public function inventory()
+    {
+        return $this->hasMany(Inventory::class);
+    }
+
+    public function purchases()
+{
+    return $this->hasMany(Purchase::class);
+}
     
 }

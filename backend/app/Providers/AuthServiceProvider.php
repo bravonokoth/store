@@ -4,11 +4,13 @@ namespace App\Providers;
 
 use App\Models\Category;
 use App\Models\Coupon;
+use App\Models\Inventory;
 use App\Models\Media;
 use App\Models\Order;
 use App\Models\Product;
 use App\Policies\CategoryPolicy;
 use App\Policies\CouponPolicy;
+use App\Policies\InventoryPolicy;
 use App\Policies\MediaPolicy;
 use App\Policies\OrderPolicy;
 use App\Policies\ProductPolicy;
@@ -22,6 +24,7 @@ class AuthServiceProvider extends ServiceProvider
         Order::class => OrderPolicy::class,
         Media::class => MediaPolicy::class,
         Coupon::class => CouponPolicy::class,
+        Inventory::class => InventoryPolicy::class,
     ];
 
     public function boot()

@@ -39,3 +39,12 @@ Route::middleware(['auth:sanctum', 'role:super-admin'])->prefix('admin')->group(
     Route::delete('products/{product}', [AdminProductController::class, 'destroy']);
     Route::delete('categories/{category}', [AdminCategoryController::class, 'destroy']);
 });
+
+Route::middleware(['auth:sanctum', 'role:admin|super-admin'])->prefix('admin')->group(function () {
+    Route::apiResource('products', AdminProductController::class)->except(['destroy']);
+    Route::apiResource('categories', AdminCategoryController::class)->except(['destroy']);
+    Route::post('orders', [AdminOrderController::class, 'store']);
+    Route::post('media', [AdminMediaController::class, 'store']);
+    Route::post('coupons', [AdminCouponController::class, 'store']);
+    Route::post('inventory', [AdminInventoryController::class, 'store']);
+});
