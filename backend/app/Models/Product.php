@@ -11,7 +11,7 @@ class Product extends Model
 
     protected $fillable = [
         'category_id', 'name', 'slug', 'description', 'price',
-        'discount_price', 'stock', 'sku', 'seo_title', 'seo_description', 'is_active'
+        'discount_price', 'stock', 'sku', 'seo_title', 'seo_description', 'is_active',
     ];
 
     public function category()
@@ -30,8 +30,22 @@ class Product extends Model
     }
 
     public function purchases()
-{
-    return $this->hasMany(Purchase::class);
-}
-    
+    {
+        return $this->hasMany(Purchase::class);
+    }
+
+    public function orderItems()
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+
+    public function cartItems()
+    {
+        return $this->hasMany(CartItem::class);
+    }
+
+    public function wishlists()
+    {
+        return $this->hasMany(Wishlist::class);
+    }
 }

@@ -3,12 +3,16 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\Admin\ProductController as AdminProductController;
 use App\Http\Controllers\Api\Admin\CategoryController as AdminCategoryController;
 use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Api\Admin\MediaController as AdminMediaController;
 use App\Http\Controllers\Api\Admin\CouponController as AdminCouponController;
+use App\Http\Controllers\Api\Admin\InventoryController as AdminInventoryController;
+use App\Http\Controllers\Api\Admin\BannerController as AdminBannerController;
+
 
 Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
@@ -24,6 +28,11 @@ Route::group(['prefix' => 'products'], function () {
     Route::get('/', [ProductController::class, 'index']);
     Route::get('/{product}', [ProductController::class, 'show']);
     Route::get('/categories', [ProductController::class, 'categories']);
+});
+
+Route::middleware(['auth:sanctum', 'role:client'])->group(function () {
+    Route::post('/cart', [CartController::class, 'store']);
+    Route::get('/cart', [CartController::class, 'index']);
 });
 
 // Admin-side routes
@@ -47,4 +56,7 @@ Route::middleware(['auth:sanctum', 'role:admin|super-admin'])->prefix('admin')->
     Route::post('media', [AdminMediaController::class, 'store']);
     Route::post('coupons', [AdminCouponController::class, 'store']);
     Route::post('inventory', [AdminInventoryController::class, 'store']);
+
+    Route::post('banners', [AdminBannerController::class, 'store']);
+
 });
