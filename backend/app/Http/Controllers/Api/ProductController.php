@@ -14,7 +14,7 @@ class ProductController extends Controller
         $products = Product::with(['category'])
             ->when($request->category, fn($query, $category) => $query->where('category_id', $category))
             ->when($request->search, fn($query, $search) => $query->where('name', 'like', "%{$search}%"))
-            ->where('is_active', true)
+            
             ->paginate(20);
 
         return response()->json($products);
