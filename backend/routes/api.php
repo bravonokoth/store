@@ -60,3 +60,17 @@ Route::middleware(['auth:sanctum', 'role:admin|super-admin'])->prefix('admin')->
     Route::post('banners', [AdminBannerController::class, 'store']);
 
 });
+
+// Test WebSocket route
+Route::get('/test-websocket', function () {
+    $event = new \App\Events\TestEvent('Hello, Socket.IO!');
+    event($event);
+
+    Http::post('http://localhost:8001/broadcast', [
+        'event' => 'TestEvent',
+        'channel' => 'test-channel',
+        'data' => ['message' => $event->message],
+    ]);
+
+    return response()->json(['message' => 'Event fired']);
+});
