@@ -32,11 +32,13 @@ interface ProductGridProps {
     sortBy: string;
     inStock: boolean;
     search: string;
+    isFeatured?: boolean; // Added to fix TypeScript error
   };
   viewMode: 'grid' | 'list';
+  limit?: number; // For limiting products on homepage
 }
 
-const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode }) => {
+const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +91,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode }) => {
       vintage: '2020',
       alcohol_content: '14.8%',
       region: 'Napa Valley, California',
+      is_featured: true, // Added to ensure 3 featured products
     },
     {
       id: '4',
@@ -118,7 +121,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode }) => {
       alcohol_content: '12.5%',
       region: 'Provence, France',
     },
-    // Add more mock products...
   ];
 
   useEffect(() => {
@@ -132,10 +134,8 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode }) => {
       // const response = await productAPI.getProducts(filters);
       // setProducts(response.data.data || []);
       
-      // For now, use mock data with filtering
       let filteredProducts = mockProducts;
 
-      // Apply filters
       if (filters.category) {
         filteredProducts = filteredProducts.filter(product => 
           product.category.toLowerCase().includes(filters.category.toLowerCase())
@@ -165,7 +165,10 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode }) => {
         filteredProducts = filteredProducts.filter(product => product.stock > 0);
       }
 
-      // Apply sorting
+      if (filters.isFeatured) { // Handle isFeatured filter
+        filteredProducts = filteredProducts.filter(product => product.is_featured);
+      }
+
       switch (filters.sortBy) {
         case 'price':
           filteredProducts.sort((a, b) => a.price - b.price);
@@ -180,7 +183,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode }) => {
           filteredProducts.sort((a, b) => b.rating - a.rating);
           break;
         case 'newest':
-          // Assuming newer products have higher IDs
           filteredProducts.sort((a, b) => parseInt(b.id) - parseInt(a.id));
           break;
         default:
@@ -280,11 +282,14 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode }) => {
     );
   }
 
+  // Apply limit if provided, otherwise use all products
+  const displayedProducts = limit ? products.slice(0, limit) : products;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <p className="text-gray-400">
-          Showing {products.length} product{products.length !== 1 ? 's' : ''}
+          Showing {displayedProducts.length} product{displayedProducts.length !== 1 ? 's' : ''}
         </p>
       </div>
 
@@ -292,7 +297,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode }) => {
         ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8'
         : 'space-y-6'
       }>
-        {products.map((product) => (
+        {displayedProducts.map((product) => (
           <div
             key={product.id}
             className={`group relative bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-purple-500/50 transition-all duration-300 shadow-lg hover:shadow-xl ${

@@ -1,6 +1,7 @@
 import React from 'react';
 import HeroSlider from '../components/HeroSlider';
 import Footer from '../components/Footer';
+import ProductGrid from '../components/Product/ProductGrid'; // Import ProductGrid
 import { Link } from 'react-router-dom';
 import { Star, Shield, Truck, Award, ArrowRight, Sparkles, Wine } from 'lucide-react';
 
@@ -54,6 +55,16 @@ const Home: React.FC = () => {
       gradient: "from-pink-500 to-pink-700"
     }
   ];
+
+  // Default filters for ProductGrid (e.g., show featured products)
+  const defaultFilters = {
+    category: '',
+    minPrice: '',
+    maxPrice: '',
+    sortBy: 'newest', // Sort by newest for homepage
+    inStock: true, // Only show products in stock
+    search: '',
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -143,6 +154,43 @@ const Home: React.FC = () => {
           </div>
         </div>
       </section>
+
+  {/* Featured Products Section */}
+<section className="py-20 bg-gray-100 shadow-lg">
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="text-center mb-16">
+      <div className="flex items-center justify-center space-x-2 mb-4">
+        <Sparkles className="h-6 w-6 text-purple-600" />
+        <span className="text-purple-600 font-medium text-lg">Featured Wines</span>
+      </div>
+      <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+        Our <span className="bg-gradient-to-r from-purple-600 to-red-600 bg-clip-text text-transparent">Top Picks</span>
+      </h2>
+      <p className="text-gray-600 text-xl max-w-3xl mx-auto">
+        Discover our hand-selected featured wines, perfect for any occasion.
+      </p>
+    </div>
+
+    {/* Render ProductGrid with limit and isFeatured filter */}
+    <ProductGrid
+      filters={{ ...defaultFilters, isFeatured: true }}
+      viewMode="grid"
+      limit={3}
+    />
+
+    {/* View More Button */}
+    <div className="mt-12 flex justify-center">
+      <Link
+        to="/products"
+        className="inline-flex items-center space-x-3 bg-gradient-to-r from-purple-600 to-red-600 text-white font-bold py-4 px-10 rounded-xl text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-2xl group"
+      >
+        <Wine className="h-6 w-6 group-hover:rotate-12 transition-transform duration-300" />
+        <span>View More Wines</span>
+        <ArrowRight className="h-6 w-6 group-hover:translate-x-1 transition-transform duration-300" />
+      </Link>
+    </div>
+  </div>
+</section>
 
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-r from-purple-600 via-red-600 to-pink-600 relative overflow-hidden">
