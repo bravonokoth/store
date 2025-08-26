@@ -7,10 +7,11 @@ const Footer: React.FC = () => {
 
   const footerLinks = {
     company: [
+      { name: 'Home', href: '/Home' },
       { name: 'About Us', href: '/about' },
-      { name: 'Our Story', href: '/story' },
-      { name: 'Careers', href: '/careers' },
-      { name: 'Press', href: '/press' },
+      { name: 'Products', href: '/product' },
+      { name: 'Contact Us', href: '/contact' },
+     
     ],
     shop: [
       { name: 'All Wines', href: '/products' },
