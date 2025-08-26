@@ -14,6 +14,7 @@ import ProfilePage from './pages/ProfilePage';
 import ContactPage from './pages/ContactPage';
 import UserDashboardPage from './pages/UserDashboardPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import ProtectedRoute from './components/ProtectedRoute';
 import socketService from './services/socket';
 
 function App() {
@@ -38,11 +39,23 @@ function App() {
             <Route path="/products" element={<Products />} />
             <Route path="/products/:id" element={<Products />} />
             <Route path="/cart" element={<CartPage />} />
-            <Route path="/checkout" element={<CheckoutPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
+            <Route
+              path="/checkout"
+              element={<ProtectedRoute element={<CheckoutPage />} />}
+            />
+            <Route
+              path="/profile"
+              element={<ProtectedRoute element={<ProfilePage />} />}
+            />
+            <Route
+              path="/dashboard"
+              element={<ProtectedRoute element={<UserDashboardPage />} />}
+            />
+            <Route
+              path="/admin/dashboard"
+              element={<ProtectedRoute element={<AdminDashboardPage />} requireAdmin />}
+            />
             <Route path="/contact" element={<ContactPage />} />
-            <Route path="/dashboard" element={<UserDashboardPage />} />
-            <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
           </Routes>
           
           {/* Toast Notifications */}
