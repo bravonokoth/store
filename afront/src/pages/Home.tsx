@@ -1,7 +1,7 @@
 import React from 'react';
 import HeroSlider from '../components/HeroSlider';
 import Footer from '../components/Footer';
-import ProductGrid from '../components/Product/ProductGrid'; // Import ProductGrid
+import ProductGrid from '../components/Product/ProductGrid'; 
 import { Link } from 'react-router-dom';
 import { Star, Shield, Truck, Award, ArrowRight, Sparkles, Wine } from 'lucide-react';
 
@@ -76,7 +76,7 @@ const Home: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              Why Choose <span className="bg-gradient-to-r from-purple-600 to-red-600 bg-clip-text text-transparent">Silverstore</span>
+              Why Choose <span className="bg-gradient-to-r from-purple-600 to-red-600 bg-clip-text text-transparent">Silveranchor</span>
             </h2>
             <p className="text-gray-600 text-xl max-w-3xl mx-auto">
               Experience the finest in wine retail with our commitment to quality, authenticity, and exceptional service.
@@ -200,7 +200,7 @@ const Home: React.FC = () => {
             Ready to Explore?
           </h2>
           <p className="text-xl text-gray-100 mb-10 max-w-3xl mx-auto">
-            Join thousands of wine enthusiasts who trust Silverstore for their finest selections. 
+            Join thousands of wine enthusiasts who trust Silveranchor for their finest selections. 
             Start your wine journey today.
           </p>
           <Link

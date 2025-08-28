@@ -9,7 +9,7 @@ const ContactPage: React.FC = () => {
       icon: <MapPin className="h-6 w-6" />,
       title: 'Address',
       details: [
-        'Silverstore Wine Shop',
+        'SilversAnchor Wine Shop',
         'Rongai, Nairobi',
         'Kenya'
       ]
@@ -101,7 +101,7 @@ const ContactPage: React.FC = () => {
 
             {/* Additional Info */}
             <div className="bg-gradient-to-br from-purple-900/20 to-red-900/20 border border-gray-700 rounded-xl p-6">
-              <h3 className="text-xl font-semibold text-white mb-4">Why Choose Silverstore?</h3>
+              <h3 className="text-xl font-semibold text-white mb-4">Why Choose SilverAnchor?</h3>
               <div className="space-y-3">
                 <div className="flex items-center space-x-3">
                   <div className="w-2 h-2 bg-purple-400 rounded-full"></div>

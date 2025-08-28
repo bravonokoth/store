@@ -53,7 +53,7 @@ const Footer: React.FC = () => {
                   <Wine className="h-6 w-6 text-white" />
                 </div>
                 <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-red-600 bg-clip-text text-transparent">
-                  Silverstore
+                  Silversanchor
                 </span>
               </div>
               <p className="text-gray-600 mb-6 leading-relaxed">
