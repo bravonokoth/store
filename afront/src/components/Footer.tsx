@@ -57,8 +57,8 @@ const Footer: React.FC = () => {
                 </span>
               </div>
               <p className="text-gray-600 mb-6 leading-relaxed">
-                Discover the world's finest wines at Silverstore. From vintage classics to modern favorites, 
-                we curate exceptional wines for every palate and occasion.
+                Discover the world's finest wines and spirits at Silveranchor. From vintage classics to modern favorites, 
+                we curate exceptional liquor for every special occasion.
               </p>
               
               {/* Contact Info */}
@@ -73,7 +73,7 @@ const Footer: React.FC = () => {
                 </div>
                 <div className="flex items-center space-x-3 text-gray-600">
                   <Mail className="h-4 w-4 text-purple-600" />
-                  <span className="text-sm">info@silverstore.com</span>
+                  <span className="text-sm">info@silveranchor.com</span>
                 </div>
               </div>
             </div>
@@ -153,7 +153,7 @@ const Footer: React.FC = () => {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
             <div className="mb-6 md:mb-0">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Stay Updated</h3>
-              <p className="text-gray-600 text-sm">Get the latest wine recommendations and exclusive offers.</p>
+              <p className="text-gray-600 text-sm">Get the latest liquor recommendations and exclusive offers.</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <input
@@ -172,7 +172,7 @@ const Footer: React.FC = () => {
         <div className="py-6 border-t border-gray-200">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
             <div className="text-gray-600 text-sm mb-4 md:mb-0">
-              © {currentYear} Silverstore. All rights reserved. | Must be 21+ to purchase alcohol.
+              © {currentYear} Silveranchor. All rights reserved. | Must be 21+ to purchase alcohol.
             </div>
             
             {/* Social Links */}

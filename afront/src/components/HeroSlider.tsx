@@ -37,7 +37,7 @@ const slides: Slide[] = [
     subtitle: "Fresh Selections",
     description: "Be the first to taste our latest wine arrivals. From emerging vineyards to established estates, discover your next favorite bottle.",
     image: "https://images.pexels.com/photos/1123260/pexels-photo-1123260.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2",
-    cta: "View New Wines",
+    cta: "View New Arrivals",
     link: "/products?sort=newest"
   }
 ];
@@ -73,7 +73,7 @@ const HeroSlider: React.FC = () => {
   };
 
   return (
-    <div className="relative h-[60vh] overflow-hidden">
+    <div className="relative h-[45vh] overflow-hidden">
       {/* Slides Container */}
       <div 
         className="flex transition-transform duration-700 ease-in-out h-full"

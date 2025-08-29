@@ -4,7 +4,7 @@ import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../../store/store';
 import { addToCart } from '../../store/cartSlice';
 import { productAPI } from '../../services/api';
-import { ShoppingCart, Star, Heart, Eye, Package, AlertCircle } from 'lucide-react';
+import { ShoppingCart, Heart, Eye, Package, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Product {
@@ -32,10 +32,10 @@ interface ProductGridProps {
     sortBy: string;
     inStock: boolean;
     search: string;
-    isFeatured?: boolean; // Added to fix TypeScript error
+    isFeatured?: boolean;
   };
   viewMode: 'grid' | 'list';
-  limit?: number; // For limiting products on homepage
+  limit?: number;
 }
 
 const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) => {
@@ -46,7 +46,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
   
   const dispatch = useDispatch<AppDispatch>();
 
-  // Mock products data (replace with API call)
+  // Mock products data (unchanged from previous update)
   const mockProducts: Product[] = [
     {
       id: '1',
@@ -91,7 +91,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
       vintage: '2020',
       alcohol_content: '14.8%',
       region: 'Napa Valley, California',
-      is_featured: true, 
+      is_featured: true,
     },
     {
       id: '4',
@@ -121,9 +121,8 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
       vintage: '2022',
       alcohol_content: '12.5%',
       region: 'Provence, France',
-      is_featured: true,
+      is_featured: false,
     },
-    
   ];
 
   useEffect(() => {
@@ -133,10 +132,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      // Simulate API call - replace with actual API call
-      // const response = await productAPI.getProducts(filters);
-      // setProducts(response.data.data || []);
-      
       let filteredProducts = mockProducts;
 
       if (filters.category) {
@@ -168,7 +163,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
         filteredProducts = filteredProducts.filter(product => product.stock > 0);
       }
 
-      if (filters.isFeatured) { // Handle isFeatured filter
+      if (filters.isFeatured) {
         filteredProducts = filteredProducts.filter(product => product.is_featured);
       }
 
@@ -189,7 +184,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
           filteredProducts.sort((a, b) => parseInt(b.id) - parseInt(a.id));
           break;
         default:
-          filteredProducts.sort((a, b) => a.name.localeCompare(b.name));
+          filteredProducts.sort((a, b) => a.name.localeCompare(a.name));
       }
 
       setProducts(filteredProducts);
@@ -228,20 +223,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
       toast.success('Added to wishlist');
     }
     setWishlist(newWishlist);
-  };
-
-  const renderStars = (rating: number) => {
-    return (
-      <div className="flex items-center space-x-1">
-        {[...Array(5)].map((_, i) => (
-          <Star
-            key={i}
-            className={`h-4 w-4 ${i < Math.floor(rating) ? 'text-yellow-400 fill-current' : 'text-gray-400'}`}
-          />
-        ))}
-        <span className="text-sm text-gray-400 ml-1">({rating})</span>
-      </div>
-    );
   };
 
   if (loading) {
@@ -285,7 +266,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
     );
   }
 
-  // Apply limit if provided, otherwise use all products
   const displayedProducts = limit ? products.slice(0, limit) : products;
 
   return (
@@ -297,143 +277,134 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
       </div>
 
       <div className={viewMode === 'grid' 
-  ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4' // Changed to lg:grid-cols-4, reduced gap
-  : 'space-y-3' // Reduced spacing for list view
-}>
-  {displayedProducts.map((product) => (
-    <div
-      key={product.id}
-      className={`group relative bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-purple-500/50 transition-all duration-300 shadow-md hover:shadow-lg ${
-        viewMode === 'list' ? 'flex' : ''
-      }`} // Smaller shadow and rounded corners
-    >
-      {/* Product Image */}
-      <div className={`relative overflow-hidden ${viewMode === 'list' ? 'w-24 flex-shrink-0' : 'aspect-[1/0.5]'}`}> {/* Changed aspect-square to aspect-[1/0.5] */}
-        <img
-          src={product.image}
-          alt={product.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" // Reduced scale effect
-        />
-        
-        {/* Featured Badge */}
-        {product.is_featured && (
-          <div className="absolute top-2 left-2 bg-gradient-to-r from-purple-500 to-red-500 text-white px-1 py-0.5 text-[10px] font-semibold rounded-full">
-            Featured
-          </div>
-        )}
-
-        {/* Stock Badge */}
-        {product.stock === 0 && (
-          <div className="absolute top-2 right-2 bg-red-500 text-white px-1 py-0.5 text-[10px] font-semibold rounded-full">
-            Out of Stock
-          </div>
-        )}
-        {product.stock < 10 && product.stock > 0 && (
-          <div className="absolute top-2 right-2 bg-orange-500 text-white px-1 py-0.5 text-[10px] font-semibold rounded-full">
-            Low Stock
-          </div>
-        )}
-
-        {/* Overlay Actions */}
-        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center space-x-2">
-          <Link
-            to={`/products/${product.id}`}
-            className="p-1 bg-white/20 hover:bg-white/30 text-white rounded-full backdrop-blur-sm transition-all duration-300 hover:scale-110"
-          >
-            <Eye className="h-4 w-4" />
-          </Link>
-          <button
-            onClick={() => toggleWishlist(product.id)}
-            className={`p-1 rounded-full backdrop-blur-sm transition-all duration-300 hover:scale-110 ${
-              wishlist.has(product.id) 
-                ? 'bg-red-500 text-white' 
-                : 'bg-white/20 hover:bg-white/30 text-white'
+        ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4'
+        : 'space-y-3'
+      }>
+        {displayedProducts.map((product) => (
+          <div
+            key={product.id}
+            className={`group relative bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-purple-500/50 transition-all duration-300 shadow-md hover:shadow-lg ${
+              viewMode === 'list' ? 'flex' : ''
             }`}
           >
-            <Heart className={`h-4 w-4 ${wishlist.has(product.id) ? 'fill-current' : ''}`} />
-          </button>
-          <button
-            onClick={() => handleAddToCart(product)}
-            disabled={product.stock === 0}
-            className={`p-1 rounded-full backdrop-blur-sm transition-all duration-300 hover:scale-110 ${
-              product.stock === 0
-                ? 'bg-gray-500 text-gray-300 cursor-not-allowed'
-                : 'bg-purple-600 hover:bg-purple-700 text-white'
-            }`}
-          >
-            <ShoppingCart className="h-4 w-4" />
-          </button>
-        </div>
+            {/* Product Image */}
+            <div className={`relative overflow-hidden ${viewMode === 'list' ? 'w-24 flex-shrink-0' : 'aspect-square'}`}>
+              <img
+                src={product.image}
+                alt={product.name}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              
+              {/* Featured Badge */}
+              {product.is_featured && (
+                <div className="absolute top-2 left-2 bg-gradient-to-r from-purple-500 to-red-500 text-white px-1 py-0.5 text-[10px] font-semibold rounded-full">
+                  Featured
+                </div>
+              )}
+
+              {/* Stock Badges */}
+              {product.stock === 0 && (
+                <div className="absolute top-2 right-2 bg-red-500 text-white px-1 py-0.5 text-[10px] font-semibold rounded-full">
+                  Out of Stock
+                </div>
+              )}
+              {product.stock < 10 && product.stock > 0 && (
+                <div className="absolute top-2 right-2 bg-orange-500 text-white px-1 py-0.5 text-[10px] font-semibold rounded-full">
+                  Low Stock
+                </div>
+              )}
+
+              {/* Overlay Actions */}
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center space-x-2">
+                <Link
+                  to={`/products/${product.id}`}
+                  className="p-1 bg-white/20 hover:bg-white/30 text-white rounded-full backdrop-blur-sm transition-all duration-300 hover:scale-110"
+                >
+                  <Eye className="h-4 w-4" />
+                </Link>
+                <button
+                  onClick={() => toggleWishlist(product.id)}
+                  className={`p-1 rounded-full backdrop-blur-sm transition-all duration-300 hover:scale-110 ${
+                    wishlist.has(product.id) 
+                      ? 'bg-red-500 text-white' 
+                      : 'bg-white/20 hover:bg-white/30 text-white'
+                  }`}
+                >
+                  <Heart className={`h-4 w-4 ${wishlist.has(product.id) ? 'fill-current' : ''}`} />
+                </button>
+                <button
+                  onClick={() => handleAddToCart(product)}
+                  disabled={product.stock === 0}
+                  className={`p-1 rounded-full backdrop-blur-sm transition-all duration-300 hover:scale-110 ${
+                    product.stock === 0
+                      ? 'bg-gray-500 text-gray-300 cursor-not-allowed'
+                      : 'bg-purple-600 hover:bg-purple-700 text-white'
+                  }`}
+                >
+                  <ShoppingCart className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Product Info */}
+            <div className={`p-2 ${viewMode === 'list' ? 'flex-1' : ''}`}>
+              <div className="flex items-start justify-between mb-1">
+                <h3 className="font-semibold text-gray-900 group-hover:text-purple-600 transition-colors line-clamp-2 text-sm">
+                  <Link to={`/products/${product.id}`}>
+                    {product.name}
+                  </Link>
+                </h3>
+              </div>
+
+              <p className="text-gray-600 text-xs mb-1 line-clamp-2">
+                {product.description}
+              </p>
+
+              <div className="space-y-1 mb-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-purple-600 bg-purple-100 px-1 py-0.5 rounded-full">
+                    {product.category}
+                  </span>
+                  {product.vintage && (
+                    <span className="text-[10px] text-gray-500">{product.vintage}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Price and Add to Cart */}
+              <div className="flex items-center justify-between mb-1">
+                <div>
+                  <span className="text-base font-bold text-gray-900">${product.price}</span>
+                </div>
+                <button
+                  onClick={() => handleAddToCart(product)}
+                  disabled={product.stock === 0}
+                  className={`flex items-center space-x-1 px-2 py-1 rounded-lg font-medium transition-all duration-300 text-xs ${
+                    product.stock === 0
+                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-purple-600 to-red-600 hover:from-purple-700 hover:to-red-700 text-white hover:shadow-lg hover:shadow-purple-500/25'
+                  }`}
+                >
+                  <ShoppingCart className="h-3 w-3" />
+                  <span className="hidden sm:inline">
+                    {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+                  </span>
+                </button>
+              </div>
+
+              {/* Stock Info */}
+              <div className="mt-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Stock:</span>
+                  <span className={product.stock < 10 ? 'text-orange-400' : 'text-green-400'}>
+                    {product.stock} available
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
-
-      {/* Product Info */}
-      <div className={`p-3 ${viewMode === 'list' ? 'flex-1' : ''}`}> {/* Reduced padding */}
-        <div className="flex items-start justify-between mb-1">
-          <h3 className="font-semibold text-gray-900 group-hover:text-purple-600 transition-colors line-clamp-2 text-sm"> {/* Reduced to text-sm */}
-            <Link to={`/products/${product.id}`}>
-              {product.name}
-            </Link>
-          </h3>
-        </div>
-
-        <p className="text-gray-600 text-xs mb-2 line-clamp-2">
-          {product.description}
-        </p>
-
-        <div className="space-y-1 mb-2">
-          {product.region && (
-            <p className="text-[10px] text-gray-500">{product.region}</p>
-          )}
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-purple-600 bg-purple-100 px-1 py-0.5 rounded-full">
-              {product.category}
-            </span>
-            {product.vintage && (
-              <span className="text-[10px] text-gray-500">{product.vintage}</span>
-            )}
-          </div>
-        </div>
-
-        {/* Rating */}
-        <div className="mb-2">
-          {renderStars(product.rating)}
-          <p className="text-[10px] text-gray-500 mt-0.5">{product.reviews_count} reviews</p>
-        </div>
-
-        {/* Price and Add to Cart */}
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-base font-bold text-gray-900">${product.price}</span> {/* Reduced to text-base */}
-          </div>
-          <button
-            onClick={() => handleAddToCart(product)}
-            disabled={product.stock === 0}
-            className={`flex items-center space-x-1 px-2 py-1 rounded-lg font-medium transition-all duration-300 text-xs ${
-              product.stock === 0
-                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                : 'bg-gradient-to-r from-purple-600 to-red-600 hover:from-purple-700 hover:to-red-700 text-white hover:shadow-lg hover:shadow-purple-500/25'
-            }`}
-          >
-            <ShoppingCart className="h-3 w-3" />
-            <span className="hidden sm:inline">
-              {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
-            </span>
-          </button>
-        </div>
-
-        {/* Stock Info */}
-        <div className="mt-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-500">Stock:</span>
-            <span className={product.stock < 10 ? 'text-orange-400' : 'text-green-400'}>
-              {product.stock} available
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  ))}
-</div>
     </div>
   );
 };
