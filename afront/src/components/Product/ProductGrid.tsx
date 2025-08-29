@@ -91,7 +91,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
       vintage: '2020',
       alcohol_content: '14.8%',
       region: 'Napa Valley, California',
-      is_featured: true, // Added to ensure 3 featured products
+      is_featured: true, 
     },
     {
       id: '4',
@@ -106,6 +106,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
       vintage: '2022',
       alcohol_content: '13%',
       region: 'Marlborough, New Zealand',
+      is_featured: true,
     },
     {
       id: '5',
@@ -120,7 +121,9 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
       vintage: '2022',
       alcohol_content: '12.5%',
       region: 'Provence, France',
+      is_featured: true,
     },
+    
   ];
 
   useEffect(() => {
@@ -294,143 +297,143 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
       </div>
 
       <div className={viewMode === 'grid' 
-        ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8'
-        : 'space-y-6'
-      }>
-        {displayedProducts.map((product) => (
-          <div
-            key={product.id}
-            className={`group relative bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-purple-500/50 transition-all duration-300 shadow-lg hover:shadow-xl ${
-              viewMode === 'list' ? 'flex' : ''
+  ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4' // Changed to lg:grid-cols-4, reduced gap
+  : 'space-y-3' // Reduced spacing for list view
+}>
+  {displayedProducts.map((product) => (
+    <div
+      key={product.id}
+      className={`group relative bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-purple-500/50 transition-all duration-300 shadow-md hover:shadow-lg ${
+        viewMode === 'list' ? 'flex' : ''
+      }`} // Smaller shadow and rounded corners
+    >
+      {/* Product Image */}
+      <div className={`relative overflow-hidden ${viewMode === 'list' ? 'w-24 flex-shrink-0' : 'aspect-[1/0.5]'}`}> {/* Changed aspect-square to aspect-[1/0.5] */}
+        <img
+          src={product.image}
+          alt={product.name}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" // Reduced scale effect
+        />
+        
+        {/* Featured Badge */}
+        {product.is_featured && (
+          <div className="absolute top-2 left-2 bg-gradient-to-r from-purple-500 to-red-500 text-white px-1 py-0.5 text-[10px] font-semibold rounded-full">
+            Featured
+          </div>
+        )}
+
+        {/* Stock Badge */}
+        {product.stock === 0 && (
+          <div className="absolute top-2 right-2 bg-red-500 text-white px-1 py-0.5 text-[10px] font-semibold rounded-full">
+            Out of Stock
+          </div>
+        )}
+        {product.stock < 10 && product.stock > 0 && (
+          <div className="absolute top-2 right-2 bg-orange-500 text-white px-1 py-0.5 text-[10px] font-semibold rounded-full">
+            Low Stock
+          </div>
+        )}
+
+        {/* Overlay Actions */}
+        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center space-x-2">
+          <Link
+            to={`/products/${product.id}`}
+            className="p-1 bg-white/20 hover:bg-white/30 text-white rounded-full backdrop-blur-sm transition-all duration-300 hover:scale-110"
+          >
+            <Eye className="h-4 w-4" />
+          </Link>
+          <button
+            onClick={() => toggleWishlist(product.id)}
+            className={`p-1 rounded-full backdrop-blur-sm transition-all duration-300 hover:scale-110 ${
+              wishlist.has(product.id) 
+                ? 'bg-red-500 text-white' 
+                : 'bg-white/20 hover:bg-white/30 text-white'
             }`}
           >
-            {/* Product Image */}
-            <div className={`relative overflow-hidden ${viewMode === 'list' ? 'w-48 flex-shrink-0' : 'aspect-square'}`}>
-              <img
-                src={product.image}
-                alt={product.name}
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-              />
-              
-              {/* Featured Badge */}
-              {product.is_featured && (
-                <div className="absolute top-3 left-3 bg-gradient-to-r from-purple-500 to-red-500 text-white px-2 py-1 text-xs font-semibold rounded-full">
-                  Featured
-                </div>
-              )}
-
-              {/* Stock Badge */}
-              {product.stock === 0 && (
-                <div className="absolute top-3 right-3 bg-red-500 text-white px-2 py-1 text-xs font-semibold rounded-full">
-                  Out of Stock
-                </div>
-              )}
-              {product.stock < 10 && product.stock > 0 && (
-                <div className="absolute top-3 right-3 bg-orange-500 text-white px-2 py-1 text-xs font-semibold rounded-full">
-                  Low Stock
-                </div>
-              )}
-
-              {/* Overlay Actions */}
-              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center space-x-3">
-                <Link
-                  to={`/products/${product.id}`}
-                  className="p-2 bg-white/20 hover:bg-white/30 text-white rounded-full backdrop-blur-sm transition-all duration-300 hover:scale-110"
-                >
-                  <Eye className="h-5 w-5" />
-                </Link>
-                <button
-                  onClick={() => toggleWishlist(product.id)}
-                  className={`p-2 rounded-full backdrop-blur-sm transition-all duration-300 hover:scale-110 ${
-                    wishlist.has(product.id) 
-                      ? 'bg-red-500 text-white' 
-                      : 'bg-white/20 hover:bg-white/30 text-white'
-                  }`}
-                >
-                  <Heart className={`h-5 w-5 ${wishlist.has(product.id) ? 'fill-current' : ''}`} />
-                </button>
-                <button
-                  onClick={() => handleAddToCart(product)}
-                  disabled={product.stock === 0}
-                  className={`p-2 rounded-full backdrop-blur-sm transition-all duration-300 hover:scale-110 ${
-                    product.stock === 0
-                      ? 'bg-gray-500 text-gray-300 cursor-not-allowed'
-                      : 'bg-purple-600 hover:bg-purple-700 text-white'
-                  }`}
-                >
-                  <ShoppingCart className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Product Info */}
-            <div className={`p-6 ${viewMode === 'list' ? 'flex-1' : ''}`}>
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="font-semibold text-gray-900 group-hover:text-purple-600 transition-colors line-clamp-2">
-                  <Link to={`/products/${product.id}`}>
-                    {product.name}
-                  </Link>
-                </h3>
-              </div>
-
-              <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                {product.description}
-              </p>
-
-              <div className="space-y-2 mb-4">
-                {product.region && (
-                  <p className="text-xs text-gray-500">{product.region}</p>
-                )}
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded-full">
-                    {product.category}
-                  </span>
-                  {product.vintage && (
-                    <span className="text-xs text-gray-500">{product.vintage}</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Rating */}
-              <div className="mb-4">
-                {renderStars(product.rating)}
-                <p className="text-xs text-gray-500 mt-1">{product.reviews_count} reviews</p>
-              </div>
-
-              {/* Price and Add to Cart */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-2xl font-bold text-gray-900">${product.price}</span>
-                </div>
-                <button
-                  onClick={() => handleAddToCart(product)}
-                  disabled={product.stock === 0}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 text-sm ${
-                    product.stock === 0
-                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-purple-600 to-red-600 hover:from-purple-700 hover:to-red-700 text-white hover:shadow-lg hover:shadow-purple-500/25'
-                  }`}
-                >
-                  <ShoppingCart className="h-4 w-4" />
-                  <span className="hidden sm:inline">
-                    {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
-                  </span>
-                </button>
-              </div>
-
-              {/* Stock Info */}
-              <div className="mt-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Stock:</span>
-                  <span className={product.stock < 10 ? 'text-orange-400' : 'text-green-400'}>
-                    {product.stock} available
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
+            <Heart className={`h-4 w-4 ${wishlist.has(product.id) ? 'fill-current' : ''}`} />
+          </button>
+          <button
+            onClick={() => handleAddToCart(product)}
+            disabled={product.stock === 0}
+            className={`p-1 rounded-full backdrop-blur-sm transition-all duration-300 hover:scale-110 ${
+              product.stock === 0
+                ? 'bg-gray-500 text-gray-300 cursor-not-allowed'
+                : 'bg-purple-600 hover:bg-purple-700 text-white'
+            }`}
+          >
+            <ShoppingCart className="h-4 w-4" />
+          </button>
+        </div>
       </div>
+
+      {/* Product Info */}
+      <div className={`p-3 ${viewMode === 'list' ? 'flex-1' : ''}`}> {/* Reduced padding */}
+        <div className="flex items-start justify-between mb-1">
+          <h3 className="font-semibold text-gray-900 group-hover:text-purple-600 transition-colors line-clamp-2 text-sm"> {/* Reduced to text-sm */}
+            <Link to={`/products/${product.id}`}>
+              {product.name}
+            </Link>
+          </h3>
+        </div>
+
+        <p className="text-gray-600 text-xs mb-2 line-clamp-2">
+          {product.description}
+        </p>
+
+        <div className="space-y-1 mb-2">
+          {product.region && (
+            <p className="text-[10px] text-gray-500">{product.region}</p>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-purple-600 bg-purple-100 px-1 py-0.5 rounded-full">
+              {product.category}
+            </span>
+            {product.vintage && (
+              <span className="text-[10px] text-gray-500">{product.vintage}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Rating */}
+        <div className="mb-2">
+          {renderStars(product.rating)}
+          <p className="text-[10px] text-gray-500 mt-0.5">{product.reviews_count} reviews</p>
+        </div>
+
+        {/* Price and Add to Cart */}
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-base font-bold text-gray-900">${product.price}</span> {/* Reduced to text-base */}
+          </div>
+          <button
+            onClick={() => handleAddToCart(product)}
+            disabled={product.stock === 0}
+            className={`flex items-center space-x-1 px-2 py-1 rounded-lg font-medium transition-all duration-300 text-xs ${
+              product.stock === 0
+                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                : 'bg-gradient-to-r from-purple-600 to-red-600 hover:from-purple-700 hover:to-red-700 text-white hover:shadow-lg hover:shadow-purple-500/25'
+            }`}
+          >
+            <ShoppingCart className="h-3 w-3" />
+            <span className="hidden sm:inline">
+              {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+            </span>
+          </button>
+        </div>
+
+        {/* Stock Info */}
+        <div className="mt-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-500">Stock:</span>
+            <span className={product.stock < 10 ? 'text-orange-400' : 'text-green-400'}>
+              {product.stock} available
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  ))}
+</div>
     </div>
   );
 };

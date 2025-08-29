@@ -75,7 +75,7 @@ const Home: React.FC = () => {
       <section className="py-20 bg-gradient-to-b from-white to-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+            <h2 className="text-4xl md:text-5xl font-bold text-gray 900 mb-4">
               Why Choose <span className="bg-gradient-to-r from-purple-600 to-red-600 bg-clip-text text-transparent">Silveranchor</span>
             </h2>
             <p className="text-gray-600 text-xl max-w-3xl mx-auto">
@@ -175,7 +175,7 @@ const Home: React.FC = () => {
     <ProductGrid
       filters={{ ...defaultFilters, isFeatured: true }}
       viewMode="grid"
-      limit={3}
+      limit={4}
     />
 
     {/* View More Button */}
