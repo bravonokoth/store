@@ -10,9 +10,9 @@ class CartItemPolicy
 {
     use HandlesAuthorization;
 
-    public function create(User $user)
+  public function create(?User $user)
     {
-        return $user->hasAnyRole(['client']);
+        return true; // Allow guest or any authenticated user
     }
 
     public function view(User $user)

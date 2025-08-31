@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CartController;
+use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\Admin\ProductController as AdminProductController;
 use App\Http\Controllers\Api\Admin\CategoryController as AdminCategoryController;
@@ -30,10 +31,12 @@ Route::group(['prefix' => 'products'], function () {
     Route::get('/categories', [ProductController::class, 'categories']);
 });
 
-Route::middleware(['auth:sanctum', 'role:client'])->group(function () {
+
     Route::post('/cart', [CartController::class, 'store']);
     Route::get('/cart', [CartController::class, 'index']);
-});
+    Route::post('/orders', [OrderController::class, 'store']);
+    Route::middleware(['auth:sanctum'])->get('/orders', [OrderController::class, 'index']);
+
 
 // Admin-side routes
 Route::middleware(['auth:sanctum', 'role:admin|super-admin'])->prefix('admin')->group(function () {

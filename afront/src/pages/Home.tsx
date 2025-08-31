@@ -10,22 +10,22 @@ const Home: React.FC = () => {
     {
       icon: <Shield className="h-8 w-8" />,
       title: "Authenticity Guaranteed",
-      description: "Every bottle is verified for authenticity and quality by our expert sommeliers."
+      description: "Every bottle is verified for authenticity and quality."
     },
     {
       icon: <Truck className="h-8 w-8" />,
-      title: "Premium Delivery",
-      description: "Temperature-controlled shipping ensures your wines arrive in perfect condition."
+      title: "Free Delivery",
+      description: "Free delivery within Rongai, CBD for orders above Ksh 1000."
     },
     {
       icon: <Award className="h-8 w-8" />,
       title: "Award-Winning Selection",
-      description: "Curated collection of award-winning wines from prestigious vineyards worldwide."
+      description: "Curated collection of award-winning liquor in Kenya."
     },
     {
       icon: <Star className="h-8 w-8" />,
       title: "Expert Recommendations",
-      description: "Personal recommendations from certified wine experts and master sommeliers."
+      description: "Personal recommendations from certified liquor experts."
     }
   ];
 
@@ -73,56 +73,55 @@ const Home: React.FC = () => {
 
 
 
-      {/* Categories Section */}
-      <section className="py-20 bg-gradient-to-b from-gray-50 to-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <div className="flex items-center justify-center space-x-2 mb-4">
-              <Sparkles className="h-6 w-6 text-purple-600" />
-              <span className="text-purple-600 font-medium text-lg">Explore Categories</span>
+<section className="py-10 bg-gradient-to-b from-gray-50 to-white"> {/* Reduced from py-20 */}
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="text-center mb-8"> {/* Reduced from mb-16 */}
+      <div className="flex items-center justify-center space-x-2 mb-4">
+        <Sparkles className="h-6 w-6 text-purple-600" />
+        <span className="text-purple-600 font-medium text-lg">Explore Categories</span>
+      </div>
+    </div>
+
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"> {/* Reduced from gap-8 */}
+      {categories.map((category, index) => (
+        <Link
+          key={index}
+          to={`/products?category=${category.name.toLowerCase().replace(' ', '-')}`}
+          className="group relative overflow-hidden rounded-2xl aspect-square"
+        >
+          <img
+            src={category.image}
+            alt={category.name}
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
+          <div className={`absolute inset-0 bg-gradient-to-t ${category.gradient} opacity-30 group-hover:opacity-50 transition-opacity duration-300`}></div>
+          
+          <div className="absolute bottom-6 left-6 right-6">
+            <h3 className="text-2xl font-bold text-white mb-2 group-hover:transform group-hover:translate-y-[-4px] transition-transform duration-300">
+              {category.name}
+            </h3>
+            <p className="text-gray-300 mb-4">{category.count}</p>
+            <div className="flex items-center text-purple-300 group-hover:text-white transition-colors duration-300">
+              <span className="font-medium">Explore Collection</span>
+              <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform duration-300" />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {categories.map((category, index) => (
-              <Link
-                key={index}
-                to={`/products?category=${category.name.toLowerCase().replace(' ', '-')}`}
-                className="group relative overflow-hidden rounded-2xl aspect-square"
-              >
-                <img
-                  src={category.image}
-                  alt={category.name}
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
-                <div className={`absolute inset-0 bg-gradient-to-t ${category.gradient} opacity-30 group-hover:opacity-50 transition-opacity duration-300`}></div>
-                
-                <div className="absolute bottom-6 left-6 right-6">
-                  <h3 className="text-2xl font-bold text-white mb-2 group-hover:transform group-hover:translate-y-[-4px] transition-transform duration-300">
-                    {category.name}
-                  </h3>
-                  <p className="text-gray-300 mb-4">{category.count}</p>
-                  <div className="flex items-center text-purple-300 group-hover:text-white transition-colors duration-300">
-                    <span className="font-medium">Explore Collection</span>
-                    <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform duration-300" />
-                  </div>
-                </div>
-
-                {/* Floating wine glass icon */}
-                <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-4 group-hover:translate-y-0">
-                  <Wine className="h-8 w-8 text-white" />
-                </div>
-              </Link>
-            ))}
+          {/* Floating wine glass icon */}
+          <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-4 group-hover:translate-y-0">
+            <Wine className="h-8 w-8 text-white" />
           </div>
-        </div>
-      </section>
+        </Link>
+      ))}
+    </div>
+  </div>
+</section>
 
   {/* Featured Products Section */}
-<section className="py-20 bg-gray-100 shadow-lg">
+<section className="py-10 bg-gray-100 shadow-lg"> {/* Reduced from py-20 */}
   <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div className="text-center mb-16">
+    <div className="text-center mb-8"> {/* Reduced from mb-16 */}
       <div className="flex items-center justify-center space-x-2 mb-4">
         <Sparkles className="h-6 w-6 text-purple-600" />
         <span className="text-purple-600 font-medium text-lg">Featured Liquor</span>
@@ -137,7 +136,7 @@ const Home: React.FC = () => {
     />
 
     {/* View More Button */}
-    <div className="mt-12 flex justify-center">
+    <div className="mt-8 flex justify-center"> {/* Reduced from mt-12 */}
       <Link
         to="/products"
         className="inline-flex items-center space-x-3 bg-gradient-to-r from-purple-600 to-red-600 text-white font-bold py-4 px-10 rounded-xl text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-2xl group"
@@ -154,9 +153,9 @@ const Home: React.FC = () => {
       <section className="py-20 bg-gradient-to-b from-white to-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-gray 900 mb-4">
+            <h3 className="text-4xl md:text-5xl font-bold text-gray 900 mb-4">
               Why Choose <span className="bg-gradient-to-r from-purple-600 to-red-600 bg-clip-text text-transparent">Silveranchor</span>
-            </h2>
+            </h3>
             <p className="text-gray-600 text-xl max-w-3xl mx-auto">
               Experience the finest in Liquor retail with our commitment to quality, authenticity, and exceptional service.
             </p>
@@ -186,9 +185,9 @@ const Home: React.FC = () => {
       <section className="py-20 bg-gradient-to-r from-purple-600 via-red-600 to-pink-600 relative overflow-hidden">
         <div className="absolute inset-0 bg-black/30"></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl md:text-6xl font-bold text-white mb-6">
+          <h3 className="text-4xl md:text-6xl font-bold text-white mb-6">
             Ready to Explore?
-          </h2>
+          </h3>
           <p className="text-xl text-gray-100 mb-10 max-w-3xl mx-auto">
             Join thousands of liquor enthusiasts who trust Silveranchor for their finest selections. 
             Start your liquor journey today.

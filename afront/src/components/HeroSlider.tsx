@@ -73,7 +73,7 @@ const HeroSlider: React.FC = () => {
   };
 
   return (
-    <div className="relative h-[45vh] overflow-hidden">
+    <div className="relative h-[55vh] overflow-hidden">
       {/* Slides Container */}
       <div 
         className="flex transition-transform duration-700 ease-in-out h-full"

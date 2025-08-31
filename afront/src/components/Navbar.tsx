@@ -61,8 +61,7 @@ const Navbar: React.FC = () => {
                 <Wine className="h-6 w-6 text-white" />
               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-red-600 bg-clip-text text-transparent">
-                Silveranchor
-              </span>
+                SA              </span>
             </Link>
           </div>
 

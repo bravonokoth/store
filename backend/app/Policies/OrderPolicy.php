@@ -10,7 +10,12 @@ class OrderPolicy
 {
     use HandlesAuthorization;
 
-    public function create(User $user)
+    public function create(?User $user)
+    {
+        return true; // Allow guest or any authenticated user
+    }
+
+    public function view(User $user)
     {
         return $user->hasAnyRole(['admin', 'super-admin']);
     }
