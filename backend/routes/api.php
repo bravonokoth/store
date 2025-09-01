@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\Admin\ProductController as AdminProductController;
 use App\Http\Controllers\Api\Admin\CategoryController as AdminCategoryController;
 use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
@@ -35,7 +36,11 @@ Route::group(['prefix' => 'products'], function () {
     Route::post('/cart', [CartController::class, 'store']);
     Route::get('/cart', [CartController::class, 'index']);
     Route::post('/orders', [OrderController::class, 'store']);
-    Route::middleware(['auth:sanctum'])->get('/orders', [OrderController::class, 'index']);
+    Route::middleware(['auth:sanctum'])->group(function () {
+    Route::get('/orders', [OrderController::class, 'index']);
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/{notification}', [NotificationController::class, 'markAsRead']);
+});
 
 
 // Admin-side routes
@@ -48,7 +53,7 @@ Route::middleware(['auth:sanctum', 'role:admin|super-admin'])->prefix('admin')->
 });
 
 Route::middleware(['auth:sanctum', 'role:super-admin'])->prefix('admin')->group(function () {
-    Route::delete('products/{product}', [AdminProductController::class, 'destroy']);
+    Route::delete('products/{product}'s, [AdminProductController::class, 'destroy']);
     Route::delete('categories/{category}', [AdminCategoryController::class, 'destroy']);
 });
 

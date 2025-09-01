@@ -52,6 +52,19 @@ class OrderController extends Controller
                 $product->save();
             }
 
+            // Create notification for authenticated user
+            if ($user) {
+                Notification::create([
+                    'user_id' => $user->id,
+                    'type' => 'order_created',
+                    'data' => [
+                        'order_id' => $order->id,
+                        'total' => $order->total,
+                        'message' => 'Your order has been created successfully.',
+                    ],
+                ]);
+            }
+
             // Clear cart for authenticated users
             if ($user) {
                 CartItem::where('user_id', $user->id)->delete();

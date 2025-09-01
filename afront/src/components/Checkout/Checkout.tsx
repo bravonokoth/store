@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store/store';
-import { clearCart } from '../../store/cartSlice';
+import { clearCart, fetchCart } from '../../store/cartSlice';
 import { orderAPI } from '../../services/api';
 import { Check, CreditCard, MapPin, Package, ArrowRight, ArrowLeft, Shield, Truck } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -41,7 +41,7 @@ const Checkout: React.FC = () => {
     city: '',
     state: '',
     zipCode: '',
-    country: 'United States',
+    country: 'Kenya',
   });
 
   const [billingAddress, setBillingAddress] = useState<Address>({ ...shippingAddress });
@@ -60,14 +60,12 @@ const Checkout: React.FC = () => {
   const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
-    }
-
     if (items.length === 0) {
-      navigate('/cart');
-      return;
+      dispatch(fetchCart()); // Fetch cart for guest or authenticated
+      if (items.length === 0) {
+        navigate('/cart');
+        return;
+      }
     }
 
     // Pre-fill user data if available
@@ -80,7 +78,7 @@ const Checkout: React.FC = () => {
         phone: user.phone || '',
       }));
     }
-  }, [isAuthenticated, items, user, navigate]);
+  }, [items, user, navigate, dispatch]);
 
   const steps = [
     { number: 1, title: 'Cart Review', icon: <Package className="h-5 w-5" /> },
@@ -90,7 +88,7 @@ const Checkout: React.FC = () => {
   ];
 
   const tax = total * 0.08;
-  const shipping = 0; // Free shipping
+  const shipping = total > 1000 ? 0 : 50; // Free shipping over Ksh 1000
   const finalTotal = total + tax + shipping;
 
   const validateStep = (step: number): boolean => {
@@ -129,25 +127,8 @@ const Checkout: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      const orderData = {
-        items: items.map(item => ({
-          product_id: item.product_id,
-          quantity: item.quantity,
-          price: item.price,
-        })),
-        shipping_address: shippingAddress,
-        billing_address: sameBillingAddress ? shippingAddress : billingAddress,
-        payment_method: 'card',
-        total: finalTotal,
-        tax,
-        shipping,
-      };
-
-      await orderAPI.createOrder(orderData);
-      
-      // Clear cart after successful order
+      await orderAPI.createOrder(); // Simplified payload
       dispatch(clearCart());
-      
       setCurrentStep(4);
       toast.success('Order placed successfully!');
     } catch (error: any) {
@@ -253,7 +234,7 @@ const Checkout: React.FC = () => {
                         <p className="text-gray-400">Quantity: {item.quantity}</p>
                       </div>
                       <div className="text-white font-semibold">
-                        ${(item.price * item.quantity).toFixed(2)}
+                        Ksh {(item.product.price * item.quantity).toFixed(2)}
                       </div>
                     </div>
                   ))}
@@ -359,7 +340,7 @@ const Checkout: React.FC = () => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">
-                        State *
+                        County *
                       </label>
                       <input
                         type="text"
@@ -371,7 +352,7 @@ const Checkout: React.FC = () => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">
-                        ZIP Code *
+                        Postal Code *
                       </label>
                       <input
                         type="text"
@@ -480,7 +461,93 @@ const Checkout: React.FC = () => {
                   {!sameBillingAddress && (
                     <div className="space-y-4">
                       <h3 className="text-xl font-semibold text-white mb-4">Billing Address</h3>
-                      {/* Add billing address form fields here */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            First Name *
+                          </label>
+                          <input
+                            type="text"
+                            value={billingAddress.firstName}
+                            onChange={(e) => handleInputChange('billing', 'firstName', e.target.value)}
+                            className="w-full bg-gray-800 border border-gray-600 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Last Name *
+                          </label>
+                          <input
+                            type="text"
+                            value={billingAddress.lastName}
+                            onChange={(e) => handleInputChange('billing', 'lastName', e.target.value)}
+                            className="w-full bg-gray-800 border border-gray-600 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Address *
+                        </label>
+                        <input
+                          type="text"
+                          value={billingAddress.address}
+                          onChange={(e) => handleInputChange('billing', 'address', e.target.value)}
+                          className="w-full bg-gray-800 border border-gray-600 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Apartment, suite, etc. (optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={billingAddress.apartment}
+                          onChange={(e) => handleInputChange('billing', 'apartment', e.target.value)}
+                          className="w-full bg-gray-800 border border-gray-600 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            City *
+                          </label>
+                          <input
+                            type="text"
+                            value={billingAddress.city}
+                            onChange={(e) => handleInputChange('billing', 'city', e.target.value)}
+                            className="w-full bg-gray-800 border border-gray-600 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            County *
+                          </label>
+                          <input
+                            type="text"
+                            value={billingAddress.state}
+                            onChange={(e) => handleInputChange('billing', 'state', e.target.value)}
+                            className="w-full bg-gray-800 border border-gray-600 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Postal Code *
+                          </label>
+                          <input
+                            type="text"
+                            value={billingAddress.zipCode}
+                            onChange={(e) => handleInputChange('billing', 'zipCode', e.target.value)}
+                            className="w-full bg-gray-800 border border-gray-600 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            required
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -499,10 +566,10 @@ const Checkout: React.FC = () => {
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <button
-                    onClick={() => navigate('/dashboard')}
+                    onClick={() => navigate(isAuthenticated ? '/dashboard' : '/products')}
                     className="bg-gradient-to-r from-purple-600 to-red-600 hover:from-purple-700 hover:to-red-700 text-white font-semibold py-3 px-8 rounded-xl transition-all duration-300"
                   >
-                    View Order Status
+                    {isAuthenticated ? 'View Order Status' : 'Continue Shopping'}
                   </button>
                   <button
                     onClick={() => navigate('/products')}
@@ -580,10 +647,10 @@ const Checkout: React.FC = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-white text-sm font-medium truncate">{item.product.name}</p>
-                      <p className="text-gray-400 text-xs">${item.price.toFixed(2)} each</p>
+                      <p className="text-gray-400 text-xs">Ksh {item.product.price.toFixed(2)} each</p>
                     </div>
                     <p className="text-white font-semibold">
-                      ${(item.price * item.quantity).toFixed(2)}
+                      Ksh {(item.product.price * item.quantity).toFixed(2)}
                     </p>
                   </div>
                 ))}
@@ -593,19 +660,21 @@ const Checkout: React.FC = () => {
               <div className="space-y-3 border-t border-gray-700 pt-4">
                 <div className="flex justify-between text-gray-300">
                   <span>Subtotal</span>
-                  <span>${total.toFixed(2)}</span>
+                  <span>Ksh {total.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-gray-300">
                   <span>Shipping</span>
-                  <span className="text-green-400">Free</span>
+                  <span className={shipping === 0 ? 'text-green-400' : 'text-gray-300'}>
+                    {shipping === 0 ? 'Free' : `Ksh ${shipping.toFixed(2)}`}
+                  </span>
                 </div>
                 <div className="flex justify-between text-gray-300">
                   <span>Tax</span>
-                  <span>${tax.toFixed(2)}</span>
+                  <span>Ksh {tax.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-xl font-bold text-white border-t border-gray-700 pt-3">
                   <span>Total</span>
-                  <span>${finalTotal.toFixed(2)}</span>
+                  <span>Ksh {finalTotal.toFixed(2)}</span>
                 </div>
               </div>
 
@@ -617,7 +686,7 @@ const Checkout: React.FC = () => {
                 </div>
                 <div className="flex items-center space-x-3 text-blue-400">
                   <Truck className="h-5 w-5" />
-                  <span className="text-sm">Free Shipping</span>
+                  <span className="text-sm">Free Shipping over Ksh 1000</span>
                 </div>
                 <div className="flex items-center space-x-3 text-purple-400">
                   <Check className="h-5 w-5" />

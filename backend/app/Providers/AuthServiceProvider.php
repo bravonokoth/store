@@ -11,6 +11,7 @@ use App\Models\Purchase;
 use App\Models\Media;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\Notification;
 use App\Policies\CategoryPolicy;
 use App\Policies\CouponPolicy;
 use App\Policies\InventoryPolicy;
@@ -31,6 +32,7 @@ class AuthServiceProvider extends ServiceProvider
         Purchase::class => PurchasePolicy::class,
         Banner::class => BannerPolicy::class,
         CartItem::class => CartItemPolicy::class,
+        Notification::class => NotificationPolicy::class,
     ];
 
     public function boot()
