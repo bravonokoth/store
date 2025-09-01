@@ -39,10 +39,9 @@ function App() {
             <Route path="/products" element={<Products />} />
             <Route path="/products/:id" element={<Products />} />
             <Route path="/cart" element={<CartPage />} /> {/* Removed ProtectedRoute */}
-            <Route
-              path="/checkout"
-              element={<ProtectedRoute element={<CheckoutPage />} />}
-            />
+            <Route path="/checkout" element={<CheckoutPage />} />
+            
+            
             <Route
               path="/profile"
               element={<ProtectedRoute element={<ProfilePage />} />}

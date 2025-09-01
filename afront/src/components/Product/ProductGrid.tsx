@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom'; // Added useNavigate
 import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../../store/store';
 import { addToCart } from '../../store/cartSlice';
@@ -45,8 +45,9 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
   const [wishlist, setWishlist] = useState<Set<string>>(new Set());
   
   const dispatch = useDispatch<AppDispatch>();
+  const navigate = useNavigate(); // Initialize useNavigate
 
-  // Mock products data (unchanged from previous update)
+  // Mock products data
   const mockProducts: Product[] = [
     {
       id: '1',
@@ -371,25 +372,53 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
                 </div>
               </div>
 
-              {/* Price and Add to Cart */}
+              {/* Price and Add to Cart + Checkout */}
               <div className="flex items-center justify-between mb-1">
                 <div>
                   <span className="text-base font-bold text-gray-900">${product.price}</span>
                 </div>
-                <button
-                  onClick={() => handleAddToCart(product)}
-                  disabled={product.stock === 0}
-                  className={`flex items-center space-x-1 px-2 py-1 rounded-lg font-medium transition-all duration-300 text-xs ${
-                    product.stock === 0
-                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-purple-600 to-red-600 hover:from-purple-700 hover:to-red-700 text-white hover:shadow-lg hover:shadow-purple-500/25'
-                  }`}
-                >
-                  <ShoppingCart className="h-3 w-3" />
-                  <span className="hidden sm:inline">
-                    {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
-                  </span>
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => handleAddToCart(product)}
+                    disabled={product.stock === 0}
+                    className={`flex items-center space-x-1 px-2 py-1 rounded-lg font-medium transition-all duration-300 text-xs ${
+                      product.stock === 0
+                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-purple-600 to-red-600 hover:from-purple-700 hover:to-red-700 text-white hover:shadow-lg hover:shadow-purple-500/25'
+                    }`}
+                  >
+                    <ShoppingCart className="h-3 w-3" />
+                    <span className="hidden sm:inline">
+                      {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (product.stock === 0) {
+                        toast.error('This product is out of stock');
+                        return;
+                      }
+                      dispatch(addToCart({ product_id: product.id, quantity: 1 }))
+                        .unwrap()
+                        .then(() => {
+                          toast.success('Added to cart! Proceeding to checkout...');
+                          navigate('/checkout');
+                        })
+                        .catch((error) => {
+                          toast.error(error || 'Failed to add to cart');
+                        });
+                    }}
+                    disabled={product.stock === 0}
+                    className={`flex items-center space-x-1 px-2 py-1 rounded-lg font-medium transition-all duration-300 text-xs ${
+                      product.stock === 0
+                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white hover:shadow-lg hover:shadow-green-500/25'
+                    }`}
+                  >
+                    <Package className="h-3 w-3" />
+                    <span className="hidden sm:inline">Checkout</span>
+                  </button>
+                </div>
               </div>
 
               {/* Stock Info */}
