@@ -33,6 +33,8 @@ class OrderController extends Controller
         // ✅ Validate address input
         $validated = $request->validate([
             'shipping_address' => 'required|array',
+            'shipping_address.first_name' => 'required|string',
+            'shipping_address.last_name' => 'required|string',
             'shipping_address.line1' => 'required|string',
             'shipping_address.city' => 'required|string',
             'shipping_address.country' => 'required|string',

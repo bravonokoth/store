@@ -10,7 +10,15 @@ return new class extends Migration {
         Schema::create('addresses', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained()->onDelete('cascade');
-            $table->string('session_id')->nullable(); // for guest checkout
+            $table->string('session_id')->nullable(); // guest checkout
+
+            // Contact details
+            $table->string('first_name');
+            $table->string('last_name');
+            $table->string('phone_number')->nullable();
+            $table->string('email')->nullable();
+
+            // Address details
             $table->string('type')->default('shipping'); // shipping or billing
             $table->string('line1');
             $table->string('line2')->nullable();
@@ -18,14 +26,19 @@ return new class extends Migration {
             $table->string('state')->nullable();
             $table->string('postal_code')->nullable();
             $table->string('country');
+
             $table->timestamps();
         });
 
         Schema::table('orders', function (Blueprint $table) {
-            $table->string('session_id')->nullable()->after('user_id');
-            $table->foreignId('shipping_address_id')->nullable()->constrained('addresses')->onDelete('set null');
-            $table->foreignId('billing_address_id')->nullable()->constrained('addresses')->onDelete('set null');
-            $table->foreignId('user_id')->nullable()->change();
+            $table->foreignId('shipping_address_id')
+                  ->nullable()
+                  ->constrained('addresses')
+                  ->nullOnDelete();
+            $table->foreignId('billing_address_id')
+                  ->nullable()
+                  ->constrained('addresses')
+                  ->nullOnDelete();
         });
     }
 
@@ -34,7 +47,6 @@ return new class extends Migration {
         Schema::table('orders', function (Blueprint $table) {
             $table->dropConstrainedForeignId('shipping_address_id');
             $table->dropConstrainedForeignId('billing_address_id');
-            $table->dropColumn('session_id');
         });
 
         Schema::dropIfExists('addresses');
