@@ -53,7 +53,7 @@ Route::middleware(['auth:sanctum', 'role:admin|super-admin'])->prefix('admin')->
 });
 
 Route::middleware(['auth:sanctum', 'role:super-admin'])->prefix('admin')->group(function () {
-    Route::delete('products/{product}'s, [AdminProductController::class, 'destroy']);
+    Route::delete('products/{product}', [AdminProductController::class, 'destroy']);
     Route::delete('categories/{category}', [AdminCategoryController::class, 'destroy']);
 });
 

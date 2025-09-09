@@ -7,8 +7,10 @@ use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\Address;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Session;
 
 class OrderController extends Controller
 {
@@ -17,12 +19,27 @@ class OrderController extends Controller
         $this->authorize('create', Order::class);
 
         $user = auth('sanctum')->user();
-        $cartItems = $user ? CartItem::where('user_id', $user->id)->get() : collect($request->input('cart_items', []));
+        $sessionId = Session::getId();
+
+        // ✅ Load cart items
+        $cartItems = $user
+            ? CartItem::where('user_id', $user->id)->get()
+            : CartItem::where('session_id', $sessionId)->get();
 
         if ($cartItems->isEmpty()) {
             return response()->json(['message' => 'Cart is empty'], 400);
         }
 
+        // ✅ Validate address input
+        $validated = $request->validate([
+            'shipping_address' => 'required|array',
+            'shipping_address.line1' => 'required|string',
+            'shipping_address.city' => 'required|string',
+            'shipping_address.country' => 'required|string',
+            'billing_address' => 'nullable|array',
+        ]);
+
+        // ✅ Calculate order total
         $total = 0;
         foreach ($cartItems as $item) {
             $product = Product::find($item->product_id);
@@ -34,44 +51,58 @@ class OrderController extends Controller
 
         DB::beginTransaction();
         try {
+            // ✅ Store addresses
+            $shippingAddress = Address::create(array_merge(
+                $validated['shipping_address'],
+                ['user_id' => $user?->id, 'session_id' => $user ? null : $sessionId, 'type' => 'shipping']
+            ));
+
+            $billingAddress = null;
+            if (!empty($validated['billing_address'])) {
+                $billingAddress = Address::create(array_merge(
+                    $validated['billing_address'],
+                    ['user_id' => $user?->id, 'session_id' => $user ? null : $sessionId, 'type' => 'billing']
+                ));
+            }
+
+            // ✅ Create order
             $order = Order::create([
-                'user_id' => $user ? $user->id : null,
+                'user_id' => $user?->id,
+                'session_id' => $user ? null : $sessionId,
                 'total' => $total,
                 'status' => 'pending',
+                'shipping_address_id' => $shippingAddress->id,
+                'billing_address_id' => $billingAddress?->id,
             ]);
 
+            // ✅ Save order items & reduce stock
             foreach ($cartItems as $item) {
+                $product = Product::find($item->product_id);
+
                 OrderItem::create([
                     'order_id' => $order->id,
                     'product_id' => $item->product_id,
                     'quantity' => $item->quantity,
-                    'price' => Product::find($item->product_id)->price,
+                    'price' => $product->price,
                 ]);
-                $product = Product::find($item->product_id);
-                $product->stock -= $item->quantity;
-                $product->save();
+
+                $product->decrement('stock', $item->quantity);
             }
 
-            // Create notification for authenticated user
-            if ($user) {
-                Notification::create([
-                    'user_id' => $user->id,
-                    'type' => 'order_created',
-                    'data' => [
-                        'order_id' => $order->id,
-                        'total' => $order->total,
-                        'message' => 'Your order has been created successfully.',
-                    ],
-                ]);
-            }
-
-            // Clear cart for authenticated users
+            // ✅ Clear cart
             if ($user) {
                 CartItem::where('user_id', $user->id)->delete();
+            } else {
+                CartItem::where('session_id', $sessionId)->delete();
             }
 
             DB::commit();
-            return response()->json(['message' => 'Order created', 'order' => $order->load('items')], 201);
+
+            return response()->json([
+                'message' => 'Order created successfully',
+                'order' => $order->load(['items.product', 'shippingAddress', 'billingAddress']),
+            ], 201);
+
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => 'Order creation failed', 'error' => $e->getMessage()], 500);
@@ -81,10 +112,14 @@ class OrderController extends Controller
     public function index(Request $request)
     {
         $user = auth('sanctum')->user();
-        if (!$user) {
-            return response()->json(['message' => 'Unauthorized'], 401);
+        $sessionId = Session::getId();
+
+        if ($user) {
+            $orders = Order::where('user_id', $user->id)->with(['items.product', 'shippingAddress', 'billingAddress'])->get();
+        } else {
+            $orders = Order::where('session_id', $sessionId)->with(['items.product', 'shippingAddress', 'billingAddress'])->get();
         }
-        $orders = Order::where('user_id', $user->id)->with('items.product')->get();
+
         return response()->json(['orders' => $orders]);
     }
 }

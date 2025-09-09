@@ -63,11 +63,11 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
     id: productId,
     name: 'Château Margaux 2015',
     price: 299.99,
-    image: 'https://images.pexels.com/photos/434311/pexels-photo-434311.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&dpr=2',
+    image: 'https://images.pexels.com/photos/434311/pexels-photo-434311.jpeg?auto=compress&cs=tinysrgb&w=600&h=600&dpr=2',
     images: [
-      'https://images.pexels.com/photos/434311/pexels-photo-434311.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&dpr=2',
-      'https://images.pexels.com/photos/774455/pexels-photo-774455.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&dpr=2',
-      'https://images.pexels.com/photos/1123260/pexels-photo-1123260.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&dpr=2',
+      'https://images.pexels.com/photos/434311/pexels-photo-434311.jpeg?auto=compress&cs=tinysrgb&w=600&h=600&dpr=2',
+      'https://images.pexels.com/photos/774455/pexels-photo-774455.jpeg?auto=compress&cs=tinysrgb&w=600&h=600&dpr=2',
+      'https://images.pexels.com/photos/1123260/pexels-photo-1123260.jpeg?auto=compress&cs=tinysrgb&w=600&h=600&dpr=2',
     ],
     category: 'Red Wine',
     description: 'A legendary wine from one of Bordeaux\'s most prestigious estates. This exceptional vintage showcases the elegance and power that has made Château Margaux world-renowned. Complex aromas of blackcurrant, violets, and cedar lead to a palate of extraordinary depth and finesse.',
@@ -89,7 +89,7 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
       id: '2',
       name: 'Dom Pérignon 2012',
       price: 189.99,
-      image: 'https://images.pexels.com/photos/1174557/pexels-photo-1174557.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&dpr=2',
+      image: 'https://images.pexels.com/photos/1174557/pexels-photo-1174557.jpeg?auto=compress&cs=tinysrgb&w=300&h=300&dpr=2',
       category: 'Champagne',
       description: 'Premium champagne',
       stock: 8,
@@ -100,7 +100,7 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
       id: '3',
       name: 'Caymus Cabernet Sauvignon',
       price: 89.99,
-      image: 'https://images.pexels.com/photos/774455/pexels-photo-774455.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&dpr=2',
+      image: 'https://images.pexels.com/photos/774455/pexels-photo-774455.jpeg?auto=compress&cs=tinysrgb&w=300&h=300&dpr=2',
       category: 'Red Wine',
       description: 'Rich Cabernet Sauvignon',
       stock: 25,
@@ -117,11 +117,6 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
   const fetchProductDetails = async () => {
     setLoading(true);
     try {
-      // Simulate API call - replace with actual API call
-      // const response = await productAPI.getProduct(productId);
-      // setProduct(response.data);
-      
-      // For now, use mock data
       setProduct(mockProduct);
       setError(null);
     } catch (err) {
@@ -134,10 +129,6 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
 
   const fetchRelatedProducts = async () => {
     try {
-      // const response = await productAPI.getRelatedProducts(productId);
-      // setRelatedProducts(response.data);
-      
-      // For now, use mock data
       setRelatedProducts(mockRelatedProducts);
     } catch (err) {
       console.error('Error fetching related products:', err);
@@ -181,20 +172,20 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
         {[...Array(5)].map((_, i) => (
           <Star
             key={i}
-            className={`h-5 w-5 ${i < Math.floor(rating) ? 'text-yellow-400 fill-current' : 'text-gray-400'}`}
+            className={`h-5 w-5 ${i < Math.floor(rating) ? 'text-yellow-500 fill-current' : 'text-gray-300'}`}
           />
         ))}
-        <span className="text-gray-300 ml-2">({rating})</span>
+        <span className="text-gray-600 ml-2">({rating})</span>
       </div>
     );
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-purple-500 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading product details...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mx-auto mb-3"></div>
+          <p className="text-gray-600">Loading product details...</p>
         </div>
       </div>
     );
@@ -202,9 +193,9 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
 
   if (error || !product) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-400 text-lg font-medium mb-4">{error || 'Product not found'}</p>
+          <p className="text-red-500 text-lg font-medium mb-4">{error || 'Product not found'}</p>
           <button
             onClick={() => navigate('/products')}
             className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition-colors"
@@ -219,12 +210,12 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
   const images = product.images || [product.image];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
+    <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Button */}
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors mb-8"
+          className="flex items-center space-x-2 text-gray-600 hover:text-purple-600 transition-colors mb-8"
         >
           <ArrowLeft className="h-5 w-5" />
           <span>Back</span>
@@ -234,11 +225,11 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
           {/* Product Images */}
           <div className="space-y-4">
             {/* Main Image */}
-            <div className="relative aspect-square bg-gray-900 rounded-2xl overflow-hidden group">
+            <div className="relative h-96 bg-gray-50 rounded-2xl overflow-hidden group shadow-md">
               <img
                 src={images[selectedImageIndex]}
                 alt={product.name}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
               
               {/* Navigation Arrows */}
@@ -246,13 +237,13 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
                 <>
                   <button
                     onClick={() => setSelectedImageIndex(selectedImageIndex === 0 ? images.length - 1 : selectedImageIndex - 1)}
-                    className="absolute left-4 top-1/2 transform -translate-y-1/2 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full backdrop-blur-sm transition-all duration-300"
+                    className="absolute left-4 top-1/2 transform -translate-y-1/2 p-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-full transition-all duration-300"
                   >
                     <ChevronLeft className="h-6 w-6" />
                   </button>
                   <button
                     onClick={() => setSelectedImageIndex(selectedImageIndex === images.length - 1 ? 0 : selectedImageIndex + 1)}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full backdrop-blur-sm transition-all duration-300"
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 p-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-full transition-all duration-300"
                   >
                     <ChevronRight className="h-6 w-6" />
                   </button>
@@ -269,15 +260,15 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
 
             {/* Thumbnail Images */}
             {images.length > 1 && (
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-4 gap-3">
                 {images.map((image, index) => (
                   <button
                     key={index}
                     onClick={() => setSelectedImageIndex(index)}
-                    className={`aspect-square rounded-lg overflow-hidden border-2 transition-all duration-300 ${
+                    className={`h-20 rounded-lg overflow-hidden border-2 transition-all duration-300 ${
                       selectedImageIndex === index 
                         ? 'border-purple-500' 
-                        : 'border-gray-700 hover:border-gray-600'
+                        : 'border-gray-300 hover:border-purple-400'
                     }`}
                   >
                     <img
@@ -295,77 +286,77 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
           <div className="space-y-6">
             <div>
               <div className="flex items-center space-x-2 mb-2">
-                <span className="text-purple-400 bg-purple-500/20 px-3 py-1 rounded-full text-sm font-medium">
+                <span className="text-purple-600 bg-purple-100 px-3 py-1 rounded-full text-sm font-medium">
                   {product.category}
                 </span>
                 {product.vintage && (
-                  <span className="text-gray-400 text-sm">{product.vintage}</span>
+                  <span className="text-gray-600 text-sm">{product.vintage}</span>
                 )}
               </div>
               
-              <h1 className="text-4xl font-bold text-white mb-4">{product.name}</h1>
+              <h1 className="text-4xl font-bold text-gray-800 mb-4">{product.name}</h1>
               
               <div className="flex items-center space-x-4 mb-4">
                 {renderStars(product.rating)}
-                <span className="text-gray-400">({product.reviews_count} reviews)</span>
+                <span className="text-gray-600">({product.reviews_count} reviews)</span>
               </div>
               
-              <p className="text-2xl font-bold text-white mb-6">${product.price}</p>
+              <p className="text-2xl font-bold text-gray-800 mb-6">${product.price}</p>
             </div>
 
             {/* Product Details */}
-            <div className="space-y-4 border-t border-gray-700 pt-6">
+            <div className="space-y-4 border-t border-gray-200 pt-6">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 {product.region && (
                   <div>
-                    <span className="text-gray-400">Region:</span>
-                    <span className="text-white ml-2">{product.region}</span>
+                    <span className="text-gray-600">Region:</span>
+                    <span className="text-gray-800 ml-2">{product.region}</span>
                   </div>
                 )}
                 {product.alcohol_content && (
                   <div>
-                    <span className="text-gray-400">Alcohol:</span>
-                    <span className="text-white ml-2">{product.alcohol_content}</span>
+                    <span className="text-gray-600">Alcohol:</span>
+                    <span className="text-gray-800 ml-2">{product.alcohol_content}</span>
                   </div>
                 )}
                 {product.grape_variety && (
                   <div className="col-span-2">
-                    <span className="text-gray-400">Grape Variety:</span>
-                    <span className="text-white ml-2">{product.grape_variety}</span>
+                    <span className="text-gray-600">Grape Variety:</span>
+                    <span className="text-gray-800 ml-2">{product.grape_variety}</span>
                   </div>
                 )}
                 {product.serving_temperature && (
                   <div>
-                    <span className="text-gray-400">Serving Temp:</span>
-                    <span className="text-white ml-2">{product.serving_temperature}</span>
+                    <span className="text-gray-600">Serving Temp:</span>
+                    <span className="text-gray-800 ml-2">{product.serving_temperature}</span>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Quantity and Add to Cart */}
-            <div className="space-y-6 border-t border-gray-700 pt-6">
+            <div className="space-y-6 border-t border-gray-200 pt-6">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-600 mb-2">
                   Quantity
                 </label>
                 <div className="flex items-center space-x-4">
-                  <div className="flex items-center bg-gray-800 rounded-lg">
+                  <div className="flex items-center bg-gray-100 rounded-lg">
                     <button
                       onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      className="p-2 text-gray-400 hover:text-white transition-colors"
+                      className="p-2 text-gray-600 hover:text-purple-600 transition-colors"
                     >
                       <Minus className="h-4 w-4" />
                     </button>
-                    <span className="px-4 py-2 text-white font-medium">{quantity}</span>
+                    <span className="px-4 py-2 text-gray-800 font-medium">{quantity}</span>
                     <button
                       onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
-                      className="p-2 text-gray-400 hover:text-white transition-colors"
+                      className="p-2 text-gray-600 hover:text-purple-600 transition-colors"
                     >
                       <Plus className="h-4 w-4" />
                     </button>
                   </div>
-                  <span className="text-gray-400 text-sm">
+                  <span className="text-gray-600 text-sm">
                     {product.stock} available
                   </span>
                 </div>
@@ -375,7 +366,7 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
                 <button
                   onClick={handleAddToCart}
                   disabled={product.stock === 0}
-                  className="flex-1 bg-gradient-to-r from-purple-600 to-red-600 hover:from-purple-700 hover:to-red-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 flex items-center justify-center space-x-2"
+                  className="flex-1 bg-gradient-to-r from-purple-500 to-red-500 hover:from-purple-600 hover:to-red-600 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 flex items-center justify-center space-x-2"
                 >
                   <ShoppingCart className="h-5 w-5" />
                   <span>
@@ -388,7 +379,7 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
                   className={`p-3 rounded-xl border-2 transition-all duration-300 ${
                     isWishlisted
                       ? 'bg-red-500 border-red-500 text-white'
-                      : 'border-gray-600 text-gray-400 hover:border-red-500 hover:text-red-500'
+                      : 'border-gray-300 text-gray-600 hover:border-red-500 hover:text-red-500'
                   }`}
                 >
                   <Heart className={`h-6 w-6 ${isWishlisted ? 'fill-current' : ''}`} />
@@ -396,7 +387,7 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
 
                 <button
                   onClick={handleShare}
-                  className="p-3 rounded-xl border-2 border-gray-600 text-gray-400 hover:border-purple-500 hover:text-purple-500 transition-all duration-300"
+                  className="p-3 rounded-xl border-2 border-gray-300 text-gray-600 hover:border-purple-500 hover:text-purple-500 transition-all duration-300"
                 >
                   <Share2 className="h-6 w-6" />
                 </button>
@@ -404,16 +395,16 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
             </div>
 
             {/* Trust Badges */}
-            <div className="flex items-center space-x-6 border-t border-gray-700 pt-6">
-              <div className="flex items-center space-x-2 text-green-400">
+            <div className="flex items-center space-x-6 border-t border-gray-200 pt-6">
+              <div className="flex items-center space-x-2 text-green-600">
                 <Shield className="h-5 w-5" />
                 <span className="text-sm">Authenticity Guaranteed</span>
               </div>
-              <div className="flex items-center space-x-2 text-blue-400">
+              <div className="flex items-center space-x-2 text-blue-600">
                 <Truck className="h-5 w-5" />
                 <span className="text-sm">Free Shipping</span>
               </div>
-              <div className="flex items-center space-x-2 text-yellow-400">
+              <div className="flex items-center space-x-2 text-yellow-600">
                 <Award className="h-5 w-5" />
                 <span className="text-sm">Award Winning</span>
               </div>
@@ -422,8 +413,8 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
         </div>
 
         {/* Product Tabs */}
-        <div className="mt-16">
-          <div className="border-b border-gray-700">
+        <div className="mt-12">
+          <div className="border-b border-gray-200">
             <nav className="flex space-x-8">
               {['description', 'details', 'reviews'].map((tab) => (
                 <button
@@ -431,8 +422,8 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
                   onClick={() => setActiveTab(tab)}
                   className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                     activeTab === tab
-                      ? 'border-purple-500 text-purple-400'
-                      : 'border-transparent text-gray-500 hover:text-gray-300'
+                      ? 'border-purple-500 text-purple-600'
+                      : 'border-transparent text-gray-600 hover:text-purple-600'
                   }`}
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -444,17 +435,17 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
           <div className="py-8">
             {activeTab === 'description' && (
               <div className="prose prose-gray max-w-none">
-                <p className="text-gray-300 text-lg leading-relaxed">
+                <p className="text-gray-600 text-lg leading-relaxed">
                   {product.description}
                 </p>
                 {product.food_pairing && (
                   <div className="mt-8">
-                    <h3 className="text-xl font-semibold text-white mb-4">Food Pairing</h3>
+                    <h3 className="text-xl font-semibold text-gray-800 mb-4">Food Pairing</h3>
                     <div className="flex flex-wrap gap-2">
                       {product.food_pairing.map((pairing, index) => (
                         <span
                           key={index}
-                          className="bg-purple-500/20 text-purple-300 px-3 py-1 rounded-full text-sm"
+                          className="bg-purple-100 text-purple-600 px-3 py-1 rounded-full text-sm"
                         >
                           {pairing}
                         </span>
@@ -468,7 +459,7 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
             {activeTab === 'details' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
-                  <h3 className="text-xl font-semibold text-white mb-4">Wine Details</h3>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-4">Wine Details</h3>
                   <dl className="space-y-3">
                     {[
                       ['Region', product.region],
@@ -479,8 +470,8 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
                       ['Wine Maker', product.wine_maker],
                     ].filter(([, value]) => value).map(([label, value]) => (
                       <div key={label} className="flex justify-between">
-                        <dt className="text-gray-400">{label}:</dt>
-                        <dd className="text-white font-medium">{value}</dd>
+                        <dt className="text-gray-600">{label}:</dt>
+                        <dd className="text-gray-800 font-medium">{value}</dd>
                       </div>
                     ))}
                   </dl>
@@ -490,8 +481,8 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
 
             {activeTab === 'reviews' && (
               <div>
-                <h3 className="text-xl font-semibold text-white mb-4">Customer Reviews</h3>
-                <p className="text-gray-400">Reviews feature coming soon...</p>
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">Customer Reviews</h3>
+                <p className="text-gray-600">Reviews feature coming soon...</p>
               </div>
             )}
           </div>
@@ -499,28 +490,28 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ productId }) => {
 
         {/* Related Products */}
         {relatedProducts.length > 0 && (
-          <div className="mt-16">
-            <h2 className="text-3xl font-bold text-white mb-8">You Might Also Like</h2>
+          <div className="mt-12">
+            <h2 className="text-3xl font-bold text-gray-800 mb-8">You Might Also Like</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {relatedProducts.map((relatedProduct) => (
                 <Link
                   key={relatedProduct.id}
                   to={`/products/${relatedProduct.id}`}
-                  className="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden hover:border-purple-500/50 transition-all duration-300 group"
+                  className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden hover:border-purple-500 transition-all duration-300 group shadow-md"
                 >
-                  <div className="aspect-square overflow-hidden">
+                  <div className="h-40 overflow-hidden">
                     <img
                       src={relatedProduct.image}
                       alt={relatedProduct.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                     />
                   </div>
                   <div className="p-4">
-                    <h4 className="font-semibold text-white group-hover:text-purple-400 transition-colors mb-2">
+                    <h4 className="font-semibold text-gray-800 group-hover:text-purple-600 transition-colors mb-2">
                       {relatedProduct.name}
                     </h4>
-                    <p className="text-gray-400 text-sm mb-2">{relatedProduct.description}</p>
-                    <p className="text-xl font-bold text-white">${relatedProduct.price}</p>
+                    <p className="text-gray-600 text-sm mb-2">{relatedProduct.description}</p>
+                    <p className="text-xl font-bold text-gray-800">${relatedProduct.price}</p>
                   </div>
                 </Link>
               ))}

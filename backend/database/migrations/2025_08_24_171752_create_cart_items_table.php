@@ -8,14 +8,27 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('cart_items', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('set null');
-            $table->foreignId('product_id')->constrained()->onDelete('cascade');
-            $table->integer('quantity')->default(1);
-            $table->string('session_id')->nullable(); // For guest users
-            $table->timestamps();
-        });
+      Schema::create('cart_items', function (Blueprint $table) {
+    $table->id();
+
+    // Must be nullable for SET NULL to work
+    $table->foreignId('user_id')
+          ->nullable()
+          ->constrained()
+          ->nullOnDelete();
+
+    $table->foreignId('product_id')
+          ->constrained()
+          ->cascadeOnDelete();
+
+    $table->integer('quantity')->default(1);
+
+    // For guest users
+    $table->string('session_id')->nullable()->index();
+
+    $table->timestamps();
+});
+
     }
 
     public function down(): void

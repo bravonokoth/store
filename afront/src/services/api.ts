@@ -18,9 +18,7 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // Response interceptor for error handling
@@ -67,9 +65,62 @@ export const cartAPI = {
   clearCart: () => api.delete('/cart'),
 };
 
+// Address API
+export const addressAPI = {
+  createAddress: (data: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+    address: string;
+    apartment?: string;
+    city: string;
+    state: string;
+    zip_code?: string;
+    type: 'shipping' | 'billing';
+    sessionId?: string;
+  }) => api.post('/addresses', { ...data, city: 'Nairobi', state: 'Nairobi' }),
+  getAddresses: () => api.get('/addresses'),
+  updateAddress: (id: string, data: any) => api.put(`/addresses/${id}`, { ...data, city: 'Nairobi', state: 'Nairobi' }),
+  deleteAddress: (id: string) => api.delete(`/addresses/${id}`),
+};
+
 // Order API
 export const orderAPI = {
-  createOrder: (data: any) => api.post('/orders', data),
+  createOrder: async (data: {
+    items: any[];
+    shippingAddress: any;
+    billingAddress: any;
+    paymentInfo: any;
+    total: number;
+    sessionId?: string;
+  }) => {
+    const shippingResponse = await addressAPI.createAddress({
+      ...data.shippingAddress,
+      type: 'shipping',
+      sessionId: data.sessionId,
+      city: 'Nairobi',
+      state: 'Nairobi',
+    });
+    const billingResponse = data.billingAddress === data.shippingAddress
+      ? shippingResponse
+      : await addressAPI.createAddress({
+          ...data.billingAddress,
+          type: 'billing',
+          sessionId: data.sessionId,
+          city: 'Nairobi',
+          state: 'Nairobi',
+        });
+
+    return api.post('/orders', {
+      items: data.items,
+      shipping_address_id: shippingResponse.data.id,
+      billing_address_id: billingResponse.data.id,
+      paymentInfo: data.paymentInfo,
+      total: data.total,
+      sessionId: data.sessionId,
+    });
+  },
   getOrders: (params?: any) => api.get('/orders', { params }),
   getOrder: (id: string) => api.get(`/orders/${id}`),
   updateOrderStatus: (id: string, status: string) =>
@@ -80,34 +131,22 @@ export const orderAPI = {
 export const adminAPI = {
   getDashboardStats: () => api.get('/admin/dashboard'),
   getAnalytics: (params?: any) => api.get('/admin/analytics', { params }),
-  
-  // Categories
   getCategories: () => api.get('/admin/categories'),
   createCategory: (data: any) => api.post('/admin/categories', data),
   updateCategory: (id: string, data: any) => api.put(`/admin/categories/${id}`, data),
   deleteCategory: (id: string) => api.delete(`/admin/categories/${id}`),
-  
-  // Products
   getProducts: (params?: any) => api.get('/admin/products', { params }),
   createProduct: (data: any) => api.post('/admin/products', data),
   updateProduct: (id: string, data: any) => api.put(`/admin/products/${id}`, data),
   deleteProduct: (id: string) => api.delete(`/admin/products/${id}`),
-  
-  // Orders
   getOrders: (params?: any) => api.get('/admin/orders', { params }),
   updateOrder: (id: string, data: any) => api.put(`/admin/orders/${id}`, data),
-  
-  // Inventory
   getInventory: () => api.get('/admin/inventory'),
   updateInventory: (id: string, data: any) => api.put(`/admin/inventory/${id}`, data),
-  
-  // Coupons
   getCoupons: () => api.get('/admin/coupons'),
   createCoupon: (data: any) => api.post('/admin/coupons', data),
   updateCoupon: (id: string, data: any) => api.put(`/admin/coupons/${id}`, data),
   deleteCoupon: (id: string) => api.delete(`/admin/coupons/${id}`),
-  
-  // Media
   uploadMedia: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -115,8 +154,6 @@ export const adminAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
-  
-  // Banners
   getBanners: () => api.get('/admin/banners'),
   createBanner: (data: any) => api.post('/admin/banners', data),
   updateBanner: (id: string, data: any) => api.put(`/admin/banners/${id}`, data),

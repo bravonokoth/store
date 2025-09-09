@@ -72,51 +72,53 @@ const Home: React.FC = () => {
       <HeroSlider />
 
 
-
-<section className="py-10 bg-gradient-to-b from-gray-50 to-white"> {/* Reduced from py-20 */}
+<section className="py-6 bg-gradient-to-b from-gray-50 to-white"> {/* Reduced from py-8 */}
   <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div className="text-center mb-8"> {/* Reduced from mb-16 */}
-      <div className="flex items-center justify-center space-x-2 mb-4">
-        <Sparkles className="h-6 w-6 text-purple-600" />
-        <span className="text-purple-600 font-medium text-lg">Explore Categories</span>
+    <div className="text-center mb-4"> {/* Reduced from mb-6 */}
+      <div className="flex items-center justify-center space-x-1 mb-2"> {/* Reduced space-x-2 and mb-3 */}
+        <Sparkles className="h-4 w-4 text-purple-600" /> {/* Reduced icon size from h-5 w-5 */}
+        <span className="text-purple-600 font-medium text-sm">Explore Categories</span> {/* Reduced font size from text-base */}
       </div>
     </div>
 
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"> {/* Reduced from gap-8 */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"> {/* Reduced gap from 4 to 3 */}
       {categories.map((category, index) => (
         <Link
           key={index}
           to={`/products?category=${category.name.toLowerCase().replace(' ', '-')}`}
-          className="group relative overflow-hidden rounded-2xl aspect-square"
+          className="group relative overflow-hidden rounded-lg h-48" // Reduced height from h-64 to h-48
         >
           <img
             src={category.image}
             alt={category.name}
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+            className="w-full h-full object-cover transition-transform duration-400 group-hover:scale-105" // Reduced transition duration
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
           <div className={`absolute inset-0 bg-gradient-to-t ${category.gradient} opacity-30 group-hover:opacity-50 transition-opacity duration-300`}></div>
           
-          <div className="absolute bottom-6 left-6 right-6">
-            <h3 className="text-2xl font-bold text-white mb-2 group-hover:transform group-hover:translate-y-[-4px] transition-transform duration-300">
+          <div className="absolute bottom-3 left-3 right-3"> {/* Reduced padding from bottom-4 left-4 right-4 */}
+            <h3 className="text-lg font-bold text-white mb-1 group-hover:transform group-hover:translate-y-[-2px] transition-transform duration-300"> {/* Reduced from text-xl */}
               {category.name}
             </h3>
-            <p className="text-gray-300 mb-4">{category.count}</p>
+            <p className="text-gray-300 text-xs mb-1"> {/* Reduced from text-sm and mb-2 */}
+              {category.count}
+            </p>
             <div className="flex items-center text-purple-300 group-hover:text-white transition-colors duration-300">
-              <span className="font-medium">Explore Collection</span>
-              <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform duration-300" />
+              <span className="font-medium text-xs">Explore</span> {/* Reduced from text-sm, shortened text */}
+              <ArrowRight className="h-2.5 w-2.5 ml-1 group-hover:translate-x-1 transition-transform duration-300" /> {/* Reduced from h-3 w-3 */}
             </div>
           </div>
 
           {/* Floating wine glass icon */}
-          <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-4 group-hover:translate-y-0">
-            <Wine className="h-8 w-8 text-white" />
+          <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0"> {/* Adjusted positioning */}
+            <Wine className="h-5 w-5 text-white" /> {/* Reduced from h-6 w-6 */}
           </div>
         </Link>
       ))}
     </div>
   </div>
 </section>
+
 
   {/* Featured Products Section */}
 <section className="py-10 bg-gray-100 shadow-lg"> {/* Reduced from py-20 */}

@@ -13,6 +13,7 @@
         "spatie/laravel-permission": "^6.21"
     },
     "require-dev": {
+        "doctrine/dbal": "^4.3",
         "fakerphp/faker": "^1.9.1",
         "laravel/pint": "^1.0",
         "laravel/sail": "^1.0.1",
