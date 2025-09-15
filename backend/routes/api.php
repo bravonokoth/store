@@ -17,6 +17,14 @@ use App\Http\Controllers\Api\Admin\InventoryController as AdminInventoryControll
 use App\Http\Controllers\Api\Admin\BannerController as AdminBannerController;
 
 
+Route::options('{any}', function () {
+    return response()->json([], 204)
+        ->header('Access-Control-Allow-Origin', 'https://store-one-olive.vercel.app')
+        ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+        ->header('Access-Control-Allow-Credentials', 'true');
+})->where('any', '.*');
+
 Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);

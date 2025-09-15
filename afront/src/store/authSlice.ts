@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { authAPI } from '../services/api';
+import { authAPI, api } from '../services/api'; // Import default api for CSRF
 
 interface User {
   id: string;
@@ -27,11 +27,11 @@ const initialState: AuthState = {
   error: null,
 };
 
-// Async thunks
 export const login = createAsyncThunk(
   'auth/login',
   async (credentials: { email: string; password: string }, { rejectWithValue }) => {
     try {
+      await api.get('/sanctum/csrf-cookie'); // Fetch CSRF token
       const response = await authAPI.login(credentials);
       const { user, token } = response.data;
       
@@ -40,7 +40,11 @@ export const login = createAsyncThunk(
       
       return { user, token };
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Login failed');
+      return rejectWithValue(
+        error.response?.data?.email?.[0] ||
+        error.response?.data?.message ||
+        'Login failed'
+      );
     }
   }
 );
@@ -49,6 +53,7 @@ export const register = createAsyncThunk(
   'auth/register',
   async (userData: any, { rejectWithValue }) => {
     try {
+      await api.get('/sanctum/csrf-cookie'); // Fetch CSRF token
       const response = await authAPI.register(userData);
       const { user, token } = response.data;
       
@@ -57,7 +62,11 @@ export const register = createAsyncThunk(
       
       return { user, token };
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Registration failed');
+      return rejectWithValue(
+        error.response?.data?.email?.[0] ||
+        error.response?.data?.message ||
+        'Registration failed'
+      );
     }
   }
 );
@@ -66,7 +75,7 @@ export const logout = createAsyncThunk('auth/logout', async () => {
   try {
     await authAPI.logout();
   } catch (error) {
-    // Even if logout fails on server, clear local storage
+    // Clear local storage regardless
   } finally {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
@@ -103,7 +112,6 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Login
       .addCase(login.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -119,8 +127,6 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload as string;
       })
-      
-      // Register
       .addCase(register.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -136,16 +142,12 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload as string;
       })
-      
-      // Logout
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
         state.token = null;
         state.isAuthenticated = false;
         state.error = null;
       })
-      
-      // Update Profile
       .addCase(updateProfile.fulfilled, (state, action) => {
         state.user = action.payload;
         state.error = null;

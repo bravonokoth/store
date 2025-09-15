@@ -10,28 +10,37 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function register(Request $request)
-    {
-        $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|string|email|unique:users',
-            'password' => 'required|string|min:6|confirmed',
-        ]);
+ public function register(Request $request)
+{
+    $request->validate([
+        'name'     => 'required|string|max:255',
+        'email'    => 'required|string|email|unique:users',
+        'password' => 'required|string|min:6|confirmed',
+    ]);
 
-        $user = User::create([
-            'name'     => $request->name,
-            'email'    => $request->email,
-            'password' => Hash::make($request->password),
-        ]);
+    $user = User::create([
+        'name'     => $request->name,
+        'email'    => $request->email,
+        'password' => Hash::make($request->password),
+    ]);
 
-        // Assign role client
-        $user->assignRole('client');
+    // Assign role client
+    $user->assignRole('client');
 
-        return response()->json([
-            'user'    => $user,
-            'message' => 'Client registered successfully'
-        ]);
-    }
+    // Create token
+    $token = $user->createToken('auth_token')->plainTextToken;
+
+    return response()->json([
+        'user'    => [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $user->getRoleNames()->first(),
+        ],
+        'token'   => $token,
+        'message' => 'Client registered successfully'
+    ]);
+}
 
     public function login(Request $request)
     {
