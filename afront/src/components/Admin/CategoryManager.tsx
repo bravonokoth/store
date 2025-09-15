@@ -72,12 +72,18 @@ const CategoryManager: React.FC = () => {
     setIsLoading(true);
     try {
       const response = await adminAPI.getCategories({ page: pageNum });
-      setCategories(response.data.data);
-      setTotalPages(response.data.last_page);
-      setTotalItems(response.data.total);
+      // Ensure response.data.data is an array, fallback to empty array if not
+      const fetchedCategories = Array.isArray(response.data.data) ? response.data.data : [];
+      setCategories(fetchedCategories);
+      setTotalPages(response.data.last_page || 1);
+      setTotalItems(response.data.total || 0);
       setIsLoading(false);
     } catch (error: any) {
-      console.error('Error fetching categories:', error);
+      console.error('Error fetching categories:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
       toast.error('Failed to load categories, using mock data');
       setCategories(mockCategories);
       setTotalPages(1);
@@ -85,6 +91,39 @@ const CategoryManager: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  // Optional: Use this for backend search endpoint with pagination
+  /*
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchCategories(page);
+    }, 500);
+    return () => clearTimeout(delayDebounceFn);
+  }, [page, searchQuery]);
+
+  const fetchCategories = async (pageNum: number) => {
+    setIsLoading(true);
+    try {
+      const response = await adminAPI.getCategories({ page: pageNum, search: searchQuery });
+      const fetchedCategories = Array.isArray(response.data.data) ? response.data.data : [];
+      setCategories(fetchedCategories);
+      setTotalPages(response.data.last_page || 1);
+      setTotalItems(response.data.total || 0);
+      setIsLoading(false);
+    } catch (error: any) {
+      console.error('Error fetching categories:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+      toast.error('Failed to load categories, using mock data');
+      setCategories(mockCategories);
+      setTotalPages(1);
+      setTotalItems(mockCategories.length);
+      setIsLoading(false);
+    }
+  };
+  */
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -161,10 +200,13 @@ const CategoryManager: React.FC = () => {
     });
   };
 
-  const filteredCategories = categories.filter(category =>
-    category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    category.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Safeguard against categories being undefined or not an array
+  const filteredCategories = Array.isArray(categories)
+    ? categories.filter(category =>
+        category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        category.description.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : [];
 
   return (
     <div className="p-6">
