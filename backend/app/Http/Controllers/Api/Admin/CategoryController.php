@@ -55,4 +55,9 @@ class CategoryController extends Controller
         $category->delete();
         return response()->json(['message' => 'Category deleted']);
     }
+
+    public function categories()
+{
+    return response()->json(\App\Models\Category::select('id', 'name')->get());
+}
 }
