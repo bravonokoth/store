@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { authAPI, api } from '../services/api'; // Import default api for CSRF
+import api, { authAPI } from '../services/api';
+
 
 interface User {
   id: string;
