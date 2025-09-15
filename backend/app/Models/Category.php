@@ -25,4 +25,10 @@ class Category extends Model
     {
         return $this->hasMany(Category::class, 'parent_id');
     }
+
+    // Optional: Accessor for products_count
+    public function getProductsCountAttribute()
+    {
+        return $this->products()->count();
+    }
 }

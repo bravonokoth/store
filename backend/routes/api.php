@@ -63,6 +63,7 @@ Route::middleware(['auth:sanctum', 'role:admin|super_admin'])->prefix('admin')->
     Route::post('coupons', [AdminCouponController::class, 'store']);
     Route::post('inventory', [AdminInventoryController::class, 'store']);
     Route::post('banners', [AdminBannerController::class, 'store']);
+    Route::get('categories/search', [AdminCategoryController::class, 'search']);
 });
 
 // Test WebSocket route

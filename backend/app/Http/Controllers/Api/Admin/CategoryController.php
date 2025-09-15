@@ -5,33 +5,33 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class CategoryController extends Controller
 {
-    public function index()
-    {
-        $categories = Category::with('children')->whereNull('parent_id')->paginate(20);
-        return response()->json($categories);
-    }
-
+   public function index()
+{
+    $categories = Category::withCount('products')->paginate(20);
+    return response()->json($categories);
+}
     public function store(Request $request)
     {
         $this->authorize('create', Category::class);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'slug' => 'required|string|unique:categories',
             'description' => 'nullable|string',
             'parent_id' => 'nullable|exists:categories,id',
         ]);
 
+        $validated['slug'] = Str::slug($request->input('name') . '-' . time());
         $category = Category::create($validated);
         return response()->json(['message' => 'Category created', 'category' => $category], 201);
     }
 
     public function show(Category $category)
     {
-        return response()->json($category->load('children', 'products'));
+        return response()->json($category->load('products'));
     }
 
     public function update(Request $request, Category $category)
@@ -40,11 +40,11 @@ class CategoryController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'slug' => 'required|string|unique:categories,slug,' . $category->id,
             'description' => 'nullable|string',
             'parent_id' => 'nullable|exists:categories,id',
         ]);
 
+        $validated['slug'] = Str::slug($request->input('name') . '-' . $category->id);
         $category->update($validated);
         return response()->json(['message' => 'Category updated', 'category' => $category]);
     }
@@ -57,7 +57,18 @@ class CategoryController extends Controller
     }
 
     public function categories()
-{
-    return response()->json(\App\Models\Category::select('id', 'name')->get());
-}
+    {
+        return response()->json(\App\Models\Category::select('id', 'name')->get());
+    }
+
+    // Optional: Add search endpoint for future scalability
+    public function search(Request $request)
+    {
+        $query = $request->input('search');
+        $categories = Category::withCount('products')
+            ->where('name', 'like', "%$query%")
+            ->orWhere('description', 'like', "%$query%")
+            ->get();
+        return response()->json(['data' => $categories]);
+    }
 }
