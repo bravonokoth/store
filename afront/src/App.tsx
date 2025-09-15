@@ -1,4 +1,3 @@
-import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { Toaster } from 'react-hot-toast';
@@ -16,12 +15,11 @@ import UserDashboardPage from './pages/UserDashboardPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import socketService from './services/socket';
+import { useEffect } from 'react';
 
 function App() {
   useEffect(() => {
-    // Initialize socket connection
     const socket = socketService.connect();
-    
     return () => {
       socketService.disconnect();
     };
@@ -38,10 +36,8 @@ function App() {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/products" element={<Products />} />
             <Route path="/products/:id" element={<Products />} />
-            <Route path="/cart" element={<CartPage />} /> {/* Removed ProtectedRoute */}
+            <Route path="/cart" element={<CartPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
-            
-            
             <Route
               path="/profile"
               element={<ProtectedRoute element={<ProfilePage />} />}
@@ -56,8 +52,6 @@ function App() {
             />
             <Route path="/contact" element={<ContactPage />} />
           </Routes>
-          
-          {/* Toast Notifications */}
           <Toaster
             position="top-right"
             toastOptions={{

@@ -17,7 +17,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ element, requireAdmin =
     return <Navigate to="/login" replace />;
   }
 
-  if (requireAdmin && user?.role !== 'admin' && user?.role !== 'super_admin') {
+  if (requireAdmin && user?.role !== 'admin' && user?.role !== 'super-admin') {
     toast.error('You do not have permission to access this page');
     return <Navigate to="/" replace />;
   }

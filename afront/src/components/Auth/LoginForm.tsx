@@ -27,11 +27,14 @@ const LoginForm: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     try {
-      await dispatch(login(formData)).unwrap();
+      const result = await dispatch(login(formData)).unwrap();
       toast.success('Welcome back!');
-      navigate('/');
+      if (result.user.role === 'admin' || result.user.role === 'super-admin') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/');
+      }
     } catch (error: any) {
       toast.error(error || 'Login failed');
     }

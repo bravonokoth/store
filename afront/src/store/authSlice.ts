@@ -6,7 +6,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'client' | 'admin' | 'super_admin';
+  role: 'client' | 'admin' | 'super-admin';
   avatar?: string;
   phone?: string;
   address?: string;
@@ -32,14 +32,20 @@ export const login = createAsyncThunk(
   'auth/login',
   async (credentials: { email: string; password: string }, { rejectWithValue }) => {
     try {
-      await api.get('/sanctum/csrf-cookie'); // Fetch CSRF token
+      await api.get('/sanctum/csrf-cookie');
       const response = await authAPI.login(credentials);
-      const { user, token } = response.data;
+      const { access_token, role } = response.data;
+      const user = {
+        id: response.data.user?.id || '',
+        name: response.data.user?.name || '',
+        email: credentials.email,
+        role,
+      };
       
-      localStorage.setItem('auth_token', token);
+      localStorage.setItem('auth_token', access_token);
       localStorage.setItem('user', JSON.stringify(user));
       
-      return { user, token };
+      return { user, token: access_token };
     } catch (error: any) {
       return rejectWithValue(
         error.response?.data?.email?.[0] ||
@@ -49,6 +55,7 @@ export const login = createAsyncThunk(
     }
   }
 );
+
 
 export const register = createAsyncThunk(
   'auth/register',
@@ -72,11 +79,12 @@ export const register = createAsyncThunk(
   }
 );
 
-export const logout = createAsyncThunk('auth/logout', async () => {
+export const logout = createAsyncThunk('auth/logout', async (_, { rejectWithValue }) => {
   try {
+    await api.get('/sanctum/csrf-cookie'); // Fetch CSRF token
     await authAPI.logout();
-  } catch (error) {
-    // Clear local storage regardless
+  } catch (error: any) {
+    return rejectWithValue('Logout failed');
   } finally {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
