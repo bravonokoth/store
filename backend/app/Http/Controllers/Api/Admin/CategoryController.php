@@ -9,20 +9,26 @@ use Illuminate\Support\Str;
 
 class CategoryController extends Controller
 {
-   public function index()
-{
-    $categories = Category::withCount('products')->paginate(20);
-    return response()->json($categories);
-}
+    public function index()
+    {
+        $categories = Category::withCount('products')->paginate(20);
+        return response()->json($categories);
+    }
+
     public function store(Request $request)
     {
         $this->authorize('create', Category::class);
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'required|string|max:255|unique:categories,name',
             'description' => 'nullable|string',
             'parent_id' => 'nullable|exists:categories,id',
+            'image' => 'nullable|image|max:2048', // Validate image (max 2MB)
         ]);
+
+        if ($request->hasFile('image')) {
+            $validated['image'] = $request->file('image')->store('categories', 'public');
+        }
 
         $validated['slug'] = Str::slug($request->input('name') . '-' . time());
         $category = Category::create($validated);
@@ -39,10 +45,15 @@ class CategoryController extends Controller
         $this->authorize('update', $category);
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'required|string|max:255|unique:categories,name,' . $category->id,
             'description' => 'nullable|string',
             'parent_id' => 'nullable|exists:categories,id',
+            'image' => 'nullable|image|max:2048',
         ]);
+
+        if ($request->hasFile('image')) {
+            $validated['image'] = $request->file('image')->store('categories', 'public');
+        }
 
         $validated['slug'] = Str::slug($request->input('name') . '-' . $category->id);
         $category->update($validated);
@@ -58,10 +69,9 @@ class CategoryController extends Controller
 
     public function categories()
     {
-        return response()->json(\App\Models\Category::select('id', 'name')->get());
+        return response()->json(Category::select('id', 'name')->get());
     }
 
-    // Optional: Add search endpoint for future scalability
     public function search(Request $request)
     {
         $query = $request->input('search');

@@ -1,8 +1,11 @@
+// Navbar.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../store/store';
 import { logout } from '../store/authSlice';
+import { authAPI } from '../services/api'; // Import authAPI
+import toast from 'react-hot-toast'; // For user feedback
 import { Wine, ShoppingCart, User, Search, Menu, X, Bell } from 'lucide-react';
 import SearchBar from './SearchBar';
 import NotificationBell from './Notifications/NotificationBell';
@@ -33,17 +36,24 @@ const Navbar: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleLogout = () => {
-    dispatch(logout());
-    navigate('/');
+
+  const handleLogout = async () => {
+  try {
+    await dispatch(logout()).unwrap(); // Wait for logout to complete
+    toast.success('Logged out successfully');
+    navigate('/'); // Redirect to login
     setIsProfileDropdownOpen(false);
-  };
+  } catch (error: any) {
+    toast.error('Logout failed: ' + (error || 'Unknown error'));
+    console.error('Logout error:', error);
+  }
+};
 
   const navLinks = [
     { name: 'Home', path: '/', show: true },
     { name: 'Products', path: '/products', show: true },
     { name: 'Contact', path: '/contact', show: true },
-    { name: 'Dashboard', path: user?.role === 'admin' || user?.role === 'super_admin' ? '/admin/dashboard' : '/dashboard', show: isAuthenticated },
+    { name: 'Dashboard', path: user?.role === 'admin' || user?.role === 'super-admin' ? '/admin/dashboard' : '/dashboard', show: isAuthenticated },
   ];
 
   const isActivePath = (path: string) => {
@@ -61,7 +71,8 @@ const Navbar: React.FC = () => {
                 <Wine className="h-6 w-6 text-white" />
               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-red-600 bg-clip-text text-transparent">
-                SA              </span>
+                SA
+              </span>
             </Link>
           </div>
 
@@ -152,7 +163,7 @@ const Navbar: React.FC = () => {
                     </Link>
                     
                     <Link
-                      to={user?.role === 'admin' || user?.role === 'super_admin' ? '/admin/dashboard' : '/dashboard'}
+                      to={user?.role === 'admin' || user?.role === 'super-admin' ? '/admin/dashboard' : '/dashboard'}
                       className="block px-4 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors"
                       onClick={() => setIsProfileDropdownOpen(false)}
                     >

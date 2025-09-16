@@ -27,7 +27,9 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 interface Category {
   id: string;
   name: string;
-  description: string;
+  slug: string;
+  description: string | null;
+  image: string | null; // Added image field
   products_count: number;
   created_at: string;
 }
@@ -38,53 +40,39 @@ const CategoryManager: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    image: null as File | null,
   });
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
 
-  // Mock categories data (for fallback/testing)
+// Mock categories data (for fallback/testing)
   const mockCategories: Category[] = [
     {
       id: '1',
       name: 'Red Wine',
+      slug: 'red-wine',
       description: 'Full-bodied red wines from various regions',
+      image: null,
       products_count: 45,
       created_at: '2024-01-15T10:30:00Z',
     },
-    {
+   {
       id: '2',
       name: 'White Wine',
+      slug: 'white-wine',
       description: 'Crisp and refreshing white wines',
+      image: null,
       products_count: 32,
       created_at: '2024-01-10T14:22:00Z',
     },
-    {
-      id: '3',
-      name: 'Sparkling Wine',
-      description: 'Effervescent wines perfect for celebrations',
-      products_count: 18,
-      created_at: '2024-01-08T09:15:00Z',
-    },
-    {
-      id: '4',
-      name: 'Champagne',
-      description: 'Premium champagnes from the Champagne region',
-      products_count: 12,
-      created_at: '2024-01-05T16:45:00Z',
-    },
-    {
-      id: '5',
-      name: 'Rosé Wine',
-      description: 'Light and elegant rosé wines',
-      products_count: 8,
-      created_at: '2024-01-03T11:20:00Z',
-    },
   ];
 
+  
   useEffect(() => {
     fetchCategories(page);
   }, [page]);
@@ -93,7 +81,7 @@ const CategoryManager: React.FC = () => {
     setIsLoading(true);
     try {
       const response = await adminAPI.getCategories({ page: pageNum });
-      console.log('API Response:', response.data); // Debug log
+      console.log('Categories API Response:', response.data); // Debug log
       const fetchedCategories = Array.isArray(response.data.data) ? response.data.data : [];
       setCategories(fetchedCategories);
       setTotalPages(Number(response.data.last_page) || 1);
@@ -113,26 +101,44 @@ const CategoryManager: React.FC = () => {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFormData((prev) => ({ ...prev, image: file }));
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('name', formData.name);
+      formDataToSend.append('description', formData.description);
+      if (formData.image) {
+        formDataToSend.append('image', formData.image);
+      }
+
       if (editingCategory) {
-        await adminAPI.updateCategory(editingCategory.id, formData);
+        await adminAPI.updateCategory(editingCategory.id, formDataToSend);
         toast.success('Category updated successfully!');
       } else {
-        await adminAPI.createCategory(formData);
+        await adminAPI.createCategory(formDataToSend);
         toast.success('Category created successfully!');
       }
       setShowModal(false);
       setEditingCategory(null);
+      setImagePreview(null);
       resetForm();
       setPage(1); // Reset to page 1
       fetchCategories(1);
@@ -149,9 +155,11 @@ const CategoryManager: React.FC = () => {
   const handleEdit = (category: Category) => {
     setEditingCategory(category);
     setFormData({
-      name: category.name,
-      description: category.description,
+      name: category.name || '',
+      description: category.description || '',
+      image: null,
     });
+    setImagePreview(category.image ? `/storage/${category.image}` : null);
     setShowModal(true);
   };
 
@@ -177,7 +185,9 @@ const CategoryManager: React.FC = () => {
     setFormData({
       name: '',
       description: '',
+      image: null,
     });
+    setImagePreview(null);
   };
 
   const formatDate = (dateString: string) => {
@@ -192,11 +202,10 @@ const CategoryManager: React.FC = () => {
     }
   };
 
-  // Safeguard against categories being undefined or not an array
   const filteredCategories = Array.isArray(categories)
     ? categories.filter(category =>
         category.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        category.description?.toLowerCase().includes(searchQuery.toLowerCase())
+        (category.description && category.description.toLowerCase().includes(searchQuery.toLowerCase()))
       )
     : [];
 
@@ -251,13 +260,23 @@ const CategoryManager: React.FC = () => {
                   className="bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500/50 transition-all duration-300 group"
                 >
                   <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-xl font-semibold text-white mb-2 group-hover:text-purple-400 transition-colors">
-                        {category.name || 'Unnamed Category'}
-                      </h3>
-                      <p className="text-gray-400 text-sm mb-3 line-clamp-2">
-                        {category.description || 'No description'}
-                      </p>
+                    <div className="flex-1 flex items-start space-x-4">
+                      {category.image && (
+                        <img
+                          src={`/storage/${category.image}`}
+                          alt={category.name || 'Category'}
+                          crossOrigin="anonymous"
+                          className="w-16 h-16 object-cover rounded-lg"
+                        />
+                      )}
+                      <div>
+                        <h3 className="text-xl font-semibold text-white mb-2 group-hover:text-purple-400 transition-colors">
+                          {category.name || 'Unnamed Category'}
+                        </h3>
+                        <p className="text-gray-400 text-sm mb-3 line-clamp-2">
+                          {category.description || 'No description'}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
@@ -372,6 +391,27 @@ const CategoryManager: React.FC = () => {
                     className="w-full bg-gray-800 border border-gray-600 text-white px-4 py-3 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
                     placeholder="Describe this category..."
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Category Image
+                  </label>
+                  <input
+                    type="file"
+                    name="image"
+                    onChange={handleFileChange}
+                    accept="image/*"
+                    className="w-full bg-gray-800 border border-gray-600 text-white px-4 py-3 rounded-lg"
+                  />
+                  {imagePreview && (
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      crossOrigin="anonymous"
+                      className="mt-2 w-32 h-32 object-cover rounded-lg"
+                    />
+                  )}
                 </div>
 
                 <div className="flex justify-end space-x-4">

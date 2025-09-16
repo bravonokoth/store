@@ -6,6 +6,7 @@ const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
   },
 });
 
@@ -131,13 +132,25 @@ export const orderAPI = {
 export const adminAPI = {
   getDashboardStats: () => api.get('/admin/dashboard'),
   getAnalytics: (params?: any) => api.get('/admin/analytics', { params }),
-  getCategories: (params?: any) => api.get('/admin/categories/search', { params }),
-  createCategory: (data: any) => api.post('/admin/categories', data),
-  updateCategory: (id: string, data: any) => api.put(`/admin/categories/${id}`, data),
+  getCategories: (params?: any) => api.get('/admin/categories', { params }), // Fixed to use /admin/categories
+  createCategory: (data: FormData) =>
+    api.post('/admin/categories', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  updateCategory: (id: string, data: FormData) =>
+    api.post(`/admin/categories/${id}?_method=PUT`, data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
   deleteCategory: (id: string) => api.delete(`/admin/categories/${id}`),
   getProducts: (params?: any) => api.get('/admin/products', { params }),
-  createProduct: (data: any) => api.post('/admin/products', data),
-  updateProduct: (id: string, data: any) => api.put(`/admin/products/${id}`, data),
+  createProduct: (data: FormData) =>
+    api.post('/admin/products', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  updateProduct: (id: string, data: FormData) =>
+    api.post(`/admin/products/${id}?_method=PUT`, data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
   deleteProduct: (id: string) => api.delete(`/admin/products/${id}`),
   getOrders: (params?: any) => api.get('/admin/orders', { params }),
   updateOrder: (id: string, data: any) => api.put(`/admin/orders/${id}`, data),
