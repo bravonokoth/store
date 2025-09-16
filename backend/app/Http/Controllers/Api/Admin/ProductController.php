@@ -32,7 +32,8 @@ class ProductController extends Controller
             'seo_title' => 'nullable|string|max:255',
             'seo_description' => 'nullable|string|max:255',
             'is_active' => 'boolean',
-            'image' => 'nullable|file|image|max:2048', // 2MB max
+            'is_featured' => 'boolean', // Add validation
+            'image' => 'nullable|file|image|max:2048',
         ]);
 
         $product = Product::create([
@@ -47,6 +48,7 @@ class ProductController extends Controller
             'seo_title' => $request->seo_title,
             'seo_description' => $request->seo_description,
             'is_active' => $request->is_active ?? true,
+            'is_featured' => $request->is_featured ?? false, // Add this
         ]);
 
         if ($request->hasFile('image')) {
@@ -86,13 +88,26 @@ class ProductController extends Controller
             'seo_title' => 'nullable|string|max:255',
             'seo_description' => 'nullable|string|max:255',
             'is_active' => 'boolean',
+            'is_featured' => 'boolean', // Add validation
             'image' => 'nullable|file|image|max:2048',
         ]);
 
-        $product->update($validated);
+        $product->update([
+            'category_id' => $validated['category_id'],
+            'name' => $validated['name'],
+            'slug' => $validated['slug'],
+            'description' => $validated['description'],
+            'price' => $validated['price'],
+            'discount_price' => $validated['discount_price'],
+            'stock' => $validated['stock'],
+            'sku' => $validated['sku'],
+            'seo_title' => $validated['seo_title'],
+            'seo_description' => $validated['seo_description'],
+            'is_active' => $validated['is_active'] ?? true,
+            'is_featured' => $validated['is_featured'] ?? false, // Add this
+        ]);
 
         if ($request->hasFile('image')) {
-            // Delete existing media
             Media::where('model_type', Product::class)
                 ->where('model_id', $product->id)
                 ->delete();
