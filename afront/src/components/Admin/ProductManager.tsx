@@ -4,6 +4,7 @@ import { Plus, Search, Edit, Trash2, Eye, Filter } from 'lucide-react';
 import { RootState } from '../../store/store';
 import { adminAPI } from '../../services/api';
 import toast from 'react-hot-toast';
+import { API_BASE_URL } from '../../services/api'; // Import API_BASE_URL
 
 // Error Boundary Component
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
@@ -77,8 +78,7 @@ const ProductManager: React.FC = () => {
   const fetchCategories = async () => {
     try {
       const response = await adminAPI.getCategories();
-      console.log('Categories API Response:', response.data); // Debug log
-      // Handle both paginated ({ data: [] }) and non-paginated ([...]) responses
+      console.log('Categories API Response:', response.data);
       const fetchedCategories = Array.isArray(response.data.data)
         ? response.data.data
         : Array.isArray(response.data)
@@ -91,7 +91,13 @@ const ProductManager: React.FC = () => {
         response: error.response?.data,
         status: error.response?.status,
       });
-      toast.error('Failed to fetch categories');
+      if (error.response?.status === 419) {
+        toast.error('Session expired or CSRF token missing. Please log in again.');
+      } else if (error.response?.status === 405) {
+        toast.error('CSRF endpoint unavailable. Please check backend configuration.');
+      } else {
+        toast.error('Failed to fetch categories');
+      }
       setCategories([]);
     }
   };
@@ -100,8 +106,7 @@ const ProductManager: React.FC = () => {
     setIsLoading(true);
     try {
       const response = await adminAPI.getProducts();
-      console.log('Products API Response:', response.data); // Debug log
-      // Handle both paginated ({ data: [] }) and non-paginated ([...]) responses
+      console.log('Products API Response:', response.data);
       const fetchedProducts = Array.isArray(response.data.data)
         ? response.data.data
         : Array.isArray(response.data)
@@ -114,7 +119,13 @@ const ProductManager: React.FC = () => {
         response: error.response?.data,
         status: error.response?.status,
       });
-      toast.error('Failed to fetch products');
+      if (error.response?.status === 419) {
+        toast.error('Session expired or CSRF token missing. Please log in again.');
+      } else if (error.response?.status === 405) {
+        toast.error('CSRF endpoint unavailable. Please check backend configuration.');
+      } else {
+        toast.error('Failed to fetch products');
+      }
       setProducts([]);
     } finally {
       setIsLoading(false);
@@ -149,7 +160,7 @@ const ProductManager: React.FC = () => {
       formDataToSend.append('price', formData.price);
       formDataToSend.append('category_id', formData.category_id);
       formDataToSend.append('stock', formData.stock);
-      formDataToSend.append('is_active', formData.is_active);
+      formDataToSend.append('is_active', formData.is_active === 'true' ? '1' : '0'); // Convert to boolean-compatible value
       if (formData.image) formDataToSend.append('image', formData.image);
       formDataToSend.append('description', formData.description);
       formDataToSend.append('sku', formData.sku);
@@ -172,11 +183,22 @@ const ProductManager: React.FC = () => {
       fetchProducts();
     } catch (error: any) {
       const message = error.response?.data?.message || 'Failed to save product';
-      if (error.response?.status === 403) {
+      if (error.response?.status === 419) {
+        toast.error('Session expired or CSRF token missing. Please log in again.');
+      } else if (error.response?.status === 405) {
+        toast.error('CSRF endpoint unavailable. Please check backend configuration.');
+      } else if (error.response?.status === 422) {
+        toast.error(`Validation error: ${message}`);
+      } else if (error.response?.status === 403) {
         toast.error('You do not have permission to perform this action');
       } else {
         toast.error(message);
       }
+      console.error('Error saving product:', {
+        message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
     }
   };
 
@@ -196,7 +218,7 @@ const ProductManager: React.FC = () => {
       seo_description: product.seo_description || '',
       image: null,
     });
-    setImagePreview(product.media?.[0]?.path ? `/storage/${product.media[0].path}` : null);
+    setImagePreview(product.media?.[0]?.path ? `${API_BASE_URL}/storage/${product.media[0].path}` : null);
     setShowModal(true);
   };
 
@@ -208,11 +230,20 @@ const ProductManager: React.FC = () => {
         fetchProducts();
       } catch (error: any) {
         const message = error.response?.data?.message || 'Failed to delete product';
-        if (error.response?.status === 403) {
+        if (error.response?.status === 419) {
+          toast.error('Session expired or CSRF token missing. Please log in again.');
+        } else if (error.response?.status === 405) {
+          toast.error('CSRF endpoint unavailable. Please check backend configuration.');
+        } else if (error.response?.status === 403) {
           toast.error('You do not have permission to perform this action');
         } else {
           toast.error(message);
         }
+        console.error('Error deleting product:', {
+          message,
+          response: error.response?.data,
+          status: error.response?.status,
+        });
       }
     }
   };
@@ -354,12 +385,16 @@ const ProductManager: React.FC = () => {
                           <img
                             src={
                               product.media?.[0]?.path
-                                ? `/storage/${product.media[0].path}`
-                                : 'https://via.placeholder.com/150'
+                                ? `${API_BASE_URL}/storage/${product.media[0].path}`
+                                : '/fallback-image.jpg'
                             }
                             alt={product.name || 'Product'}
                             crossOrigin="anonymous"
                             className="w-12 h-12 object-cover rounded-lg mr-4"
+                            onError={(e) => {
+                              console.error('Failed to load image:', e.currentTarget.src);
+                              e.currentTarget.src = '/fallback-image.jpg';
+                            }}
                           />
                           <div>
                             <div className="text-sm font-medium text-gray-800">
@@ -552,6 +587,10 @@ const ProductManager: React.FC = () => {
                         alt="Preview"
                         crossOrigin="anonymous"
                         className="mt-2 w-32 h-32 object-cover rounded-lg"
+                        onError={(e) => {
+                          console.error('Failed to load image preview:', e.currentTarget.src);
+                          e.currentTarget.src = '/fallback-image.jpg';
+                        }}
                       />
                     )}
                   </div>
