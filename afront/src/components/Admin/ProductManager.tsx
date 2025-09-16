@@ -5,6 +5,9 @@ import { RootState } from '../../store/store';
 import { adminAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
+
+const API_BASE_URL = process.env.VITE_APP_API_BASE_URL || 'http://localhost:8000';
+
 // Error Boundary Component
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
