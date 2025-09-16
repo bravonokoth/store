@@ -36,7 +36,7 @@ class ProductController extends Controller
             });
         }
         if ($request->has('is_featured') && $request->is_featured) {
-            $query->where('is_featured', true); // Now works with the new column
+            $query->where('is_featured', true); 
         }
 
         if ($request->has('sort_by')) {

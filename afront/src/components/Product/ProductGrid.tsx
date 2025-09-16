@@ -42,13 +42,14 @@ interface ProductGridProps {
     sortBy: string;
     inStock: boolean;
     search: string;
-    isFeatured?: boolean;
+    isFeatured: boolean; // Changed from isFeatured?: boolean | undefined
   };
+  setFilters: (filters: ProductGridProps['filters']) => void;
   viewMode: 'grid' | 'list';
   limit?: number;
 }
 
-const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) => {
+const ProductGrid: React.FC<ProductGridProps> = ({ filters, setFilters, viewMode, limit }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,7 +105,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
         vintage: product.vintage || undefined,
         alcohol_content: product.alcohol_content || undefined,
         region: product.region || undefined,
-        is_featured: product.is_featured || false,
+        is_featured: product.is_featured ?? false,
       }));
 
       setProducts(fetchedProducts);
@@ -163,12 +164,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
           <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
           <p className="text-red-400 text-base font-medium mb-2">Error loading products</p>
           <p className="text-gray-400">{error}</p>
-          <button
-            onClick={fetchProducts}
-            className="mt-3 bg-purple-600 hover:bg-purple-700 text-white px-4 py-1.5 rounded-lg transition-colors"
-          >
-            Try Again
-          </button>
         </div>
       </div>
     );
@@ -190,29 +185,73 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
 
   return (
     <div>
-      {/* Category Filter Dropdown */}
+      {/* Filters Section */}
       <div className="mb-4">
-        <label htmlFor="category-filter" className="text-sm text-gray-600 mr-2">
-          Filter by Category:
-        </label>
-        <select
-          id="category-filter"
-          value={filters.category}
-          onChange={(e) => {
-            // Update the filters prop (you may need to lift this state up to the parent component)
-            // For simplicity, assuming filters are controlled by a parent component
-            // Example: onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-            console.log('Selected category:', e.target.value);
-          }}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-        >
-          <option value="">All Categories</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.name}>
-              {category.name} ({category.products_count})
-            </option>
-          ))}
-        </select>
+        <h3 className="text-lg font-semibold text-gray-900 mb-3">Filters</h3>
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="category-filter" className="block text-sm text-gray-600 mb-1">
+              Category
+            </label>
+            <select
+              id="category-filter"
+              value={filters.category}
+              onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">All Categories</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.name}>
+                  {category.name} ({category.products_count})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Price Range</label>
+            <div className="flex space-x-2">
+              <input
+                type="number"
+                placeholder="Min Price"
+                value={filters.minPrice}
+                onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })}
+                className="w-1/2 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              <input
+                type="number"
+                placeholder="Max Price"
+                value={filters.maxPrice}
+                onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })}
+                className="w-1/2 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="flex items-center text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={filters.inStock}
+                onChange={(e) => setFilters({ ...filters, inStock: e.target.checked })}
+                className="mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+              />
+              In Stock Only
+            </label>
+          </div>
+
+          <div>
+            <label className="flex items-center text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={filters.isFeatured}
+                onChange={(e) => setFilters({ ...filters, isFeatured: e.target.checked })}
+                className="mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+              />
+              Featured Products
+            </label>
+          </div>
+        </div>
       </div>
 
       <div className="flex items-center justify-between mb-4">
@@ -232,7 +271,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
               viewMode === 'list' ? 'flex' : ''
             }`}
           >
-            {/* Product Image */}
             <div className={`relative overflow-hidden ${viewMode === 'list' ? 'w-20 flex-shrink-0' : 'h-40'}`}>
               <img
                 src={product.image}
@@ -240,14 +278,12 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-400"
               />
               
-              {/* Featured Badge */}
               {product.is_featured && (
                 <div className="absolute top-1.5 left-1.5 bg-gradient-to-r from-purple-500 to-red-500 text-white px-1 py-0.5 text-[9px] font-semibold rounded-full">
                   Featured
                 </div>
               )}
 
-              {/* Stock Badges */}
               {product.stock === 0 && (
                 <div className="absolute top-1.5 right-1.5 bg-red-500 text-white px-1 py-0.5 text-[9px] font-semibold rounded-full">
                   Out of Stock
@@ -259,7 +295,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
                 </div>
               )}
 
-              {/* Overlay Actions */}
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center space-x-1.5">
                 <Link
                   to={`/products/${product.id}`}
@@ -291,7 +326,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
               </div>
             </div>
 
-            {/* Product Info */}
             <div className={`p-1.5 ${viewMode === 'list' ? 'flex-1' : ''}`}>
               <div className="flex items-start justify-between mb-0.5">
                 <h3 className="font-semibold text-gray-900 group-hover:text-purple-600 transition-colors line-clamp-2 text-xs">
@@ -316,7 +350,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
                 </div>
               </div>
 
-              {/* Price and Add to Cart + Checkout */}
               <div className="flex items-center justify-between mb-0.5">
                 <div>
                   <span className="text-sm font-bold text-gray-900">${product.price}</span>
@@ -365,7 +398,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
                 </div>
               </div>
 
-              {/* Stock Info */}
               <div className="mt-0.5">
                 <div className="flex items-center justify-between text-[10px]">
                   <span className="text-gray-500">Stock:</span>

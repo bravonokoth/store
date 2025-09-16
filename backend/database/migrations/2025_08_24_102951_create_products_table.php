@@ -23,6 +23,7 @@ class CreateProductsTable extends Migration
             $table->string('seo_title')->nullable();
             $table->string('seo_description', 255)->nullable();
             $table->boolean('is_active')->default(true);
+            $table->boolean('is_featured')->default(false);
             $table->timestamps();
         });
     }
