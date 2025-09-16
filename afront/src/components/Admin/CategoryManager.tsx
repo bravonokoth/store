@@ -29,7 +29,7 @@ interface Category {
   name: string;
   slug: string;
   description: string | null;
-  image: string | null; // Added image field
+  image: string | null;
   products_count: number;
   created_at: string;
 }
@@ -50,7 +50,7 @@ const CategoryManager: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
 
-// Mock categories data (for fallback/testing)
+  // Mock categories data (for fallback/testing)
   const mockCategories: Category[] = [
     {
       id: '1',
@@ -61,7 +61,7 @@ const CategoryManager: React.FC = () => {
       products_count: 45,
       created_at: '2024-01-15T10:30:00Z',
     },
-   {
+    {
       id: '2',
       name: 'White Wine',
       slug: 'white-wine',
@@ -72,7 +72,6 @@ const CategoryManager: React.FC = () => {
     },
   ];
 
-  
   useEffect(() => {
     fetchCategories(page);
   }, [page]);
@@ -93,7 +92,11 @@ const CategoryManager: React.FC = () => {
         response: error.response?.data,
         status: error.response?.status,
       });
-      toast.error('Failed to load categories, using mock data');
+      if (error.response?.status === 419) {
+        toast.error('Session expired or CSRF token missing. Please log in again.');
+      } else {
+        toast.error('Failed to load categories, using mock data');
+      }
       setCategories(mockCategories);
       setTotalPages(1);
       setTotalItems(mockCategories.length);
@@ -144,11 +147,18 @@ const CategoryManager: React.FC = () => {
       fetchCategories(1);
     } catch (error: any) {
       const message = error.response?.data?.message || 'Failed to save category';
-      if (error.response?.status === 403) {
+      if (error.response?.status === 419) {
+        toast.error('Session expired or CSRF token missing. Please log in again.');
+      } else if (error.response?.status === 403) {
         toast.error('You do not have permission to perform this action');
       } else {
         toast.error(message);
       }
+      console.error('Error saving category:', {
+        message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
     }
   };
 
@@ -172,11 +182,18 @@ const CategoryManager: React.FC = () => {
         fetchCategories(1);
       } catch (error: any) {
         const message = error.response?.data?.message || 'Failed to delete category';
-        if (error.response?.status === 403) {
+        if (error.response?.status === 419) {
+          toast.error('Session expired or CSRF token missing. Please log in again.');
+        } else if (error.response?.status === 403) {
           toast.error('You do not have permission to perform this action');
         } else {
           toast.error(message);
         }
+        console.error('Error deleting category:', {
+          message,
+          response: error.response?.data,
+          status: error.response?.status,
+        });
       }
     }
   };
