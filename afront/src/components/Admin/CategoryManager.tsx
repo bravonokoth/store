@@ -3,6 +3,9 @@ import { Plus, Edit, Trash2, Search } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
+// Define your API base URL here
+const API_BASE_URL = process.env.VITE_APP_API_BASE_URL || 'http://localhost:8000';
+
 // Error Boundary Component
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
