@@ -24,6 +24,16 @@ interface Product {
   is_featured?: boolean;
 }
 
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  image?: string;
+  products_count: number;
+  parent_id?: string;
+}
+
 interface ProductGridProps {
   filters: {
     category: string;
@@ -40,6 +50,7 @@ interface ProductGridProps {
 
 const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [wishlist, setWishlist] = useState<Set<string>>(new Set());
@@ -48,13 +59,23 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
   const navigate = useNavigate();
 
   useEffect(() => {
+    fetchCategories();
     fetchProducts();
   }, [filters]);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await productAPI.getCategories();
+      setCategories(response.data.data);
+    } catch (err: any) {
+      console.error('Error fetching categories:', err);
+      toast.error('Failed to load categories');
+    }
+  };
 
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      // Map filters to API query parameters
       const params = {
         category: filters.category || undefined,
         min_price: filters.minPrice ? parseFloat(filters.minPrice) : undefined,
@@ -65,15 +86,11 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
         is_featured: filters.isFeatured ? 1 : undefined,
       };
 
-      // Fetch products from the API
       const response = await productAPI.getProducts(params);
-
-      // Map API response to the Product interface
       const fetchedProducts: Product[] = response.data.data.map((product: any) => ({
         id: product.id.toString(),
         name: product.name,
         price: parseFloat(product.price),
-        // Use the first media item as the main image, or a fallback
         image: product.media && product.media.length > 0 
           ? `${import.meta.env.VITE_API_BASE_URL}/storage/${product.media[0].path}`
           : 'https://via.placeholder.com/300',
@@ -173,6 +190,31 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
 
   return (
     <div>
+      {/* Category Filter Dropdown */}
+      <div className="mb-4">
+        <label htmlFor="category-filter" className="text-sm text-gray-600 mr-2">
+          Filter by Category:
+        </label>
+        <select
+          id="category-filter"
+          value={filters.category}
+          onChange={(e) => {
+            // Update the filters prop (you may need to lift this state up to the parent component)
+            // For simplicity, assuming filters are controlled by a parent component
+            // Example: onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+            console.log('Selected category:', e.target.value);
+          }}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+        >
+          <option value="">All Categories</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.name}>
+              {category.name} ({category.products_count})
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div className="flex items-center justify-between mb-4">
         <p className="text-gray-400 text-sm">
           Showing {displayedProducts.length} product{displayedProducts.length !== 1 ? 's' : ''}
