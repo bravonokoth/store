@@ -47,85 +47,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
 
-  // Mock products data
-  const mockProducts: Product[] = [
-    {
-      id: '1',
-      name: 'Château Margaux 2015',
-      price: 299.99,
-      image: 'https://images.pexels.com/photos/434311/pexels-photo-434311.jpeg?auto=compress&cs=tinysrgb&w=300&h=300&dpr=2',
-      category: 'red wine',
-      description: 'A legendary wine from one of Bordeaux\'s most prestigious estates.',
-      stock: 12,
-      rating: 4.9,
-      reviews_count: 47,
-      vintage: '2015',
-      alcohol_content: '13.5%',
-      region: 'Bordeaux, France',
-      is_featured: true,
-    },
-    {
-      id: '2',
-      name: 'Dom Pérignon 2012',
-      price: 189.99,
-      image: 'https://images.pexels.com/photos/1174557/pexels-photo-1174557.jpeg?auto=compress&cs=tinysrgb&w=300&h=300&dpr=2',
-      category: 'champagne',
-      description: 'The pinnacle of champagne excellence from the prestigious Dom Pérignon house.',
-      stock: 8,
-      rating: 4.8,
-      reviews_count: 32,
-      vintage: '2012',
-      alcohol_content: '12.5%',
-      region: 'Champagne, France',
-      is_featured: true,
-    },
-    {
-      id: '3',
-      name: 'Caymus Cabernet Sauvignon',
-      price: 89.99,
-      image: 'https://images.pexels.com/photos/774455/pexels-photo-774455.jpeg?auto=compress&cs=tinysrgb&w=300&h=300&dpr=2',
-      category: 'red wine',
-      description: 'Rich and bold Cabernet Sauvignon from Napa Valley.',
-      stock: 25,
-      rating: 4.6,
-      reviews_count: 128,
-      vintage: '2020',
-      alcohol_content: '14.8%',
-      region: 'Napa Valley, California',
-      is_featured: true,
-    },
-    {
-      id: '4',
-      name: 'Cloudy Bay Sauvignon Blanc',
-      price: 24.99,
-      image: 'https://images.pexels.com/photos/2912108/pexels-photo-2912108.jpeg?auto=compress&cs=tinysrgb&w=300&h=300&dpr=2',
-      category: 'white wine',
-      description: 'Crisp and refreshing Sauvignon Blanc from New Zealand.',
-      stock: 45,
-      rating: 4.4,
-      reviews_count: 89,
-      vintage: '2022',
-      alcohol_content: '13%',
-      region: 'Marlborough, New Zealand',
-      is_featured: true,
-    },
-    {
-      id: '5',
-      name: 'Whispering Angel Rosé',
-      price: 19.99,
-      image: 'https://images.pexels.com/photos/1123260/pexels-photo-1123260.jpeg?auto=compress&cs=tinysrgb&w=300&h=300&dpr=2',
-      category: 'rosé wine',
-      description: 'Elegant and fresh rosé from Provence.',
-      stock: 32,
-      rating: 4.3,
-      reviews_count: 67,
-      vintage: '2022',
-      alcohol_content: '12.5%',
-      region: 'Provence, France',
-      is_featured: false,
-    },
-  ];
-
   useEffect(() => {
     fetchProducts();
   }, [filters]);
@@ -133,65 +54,46 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, viewMode, limit }) =
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      let filteredProducts = mockProducts;
+      // Map filters to API query parameters
+      const params = {
+        category: filters.category || undefined,
+        min_price: filters.minPrice ? parseFloat(filters.minPrice) : undefined,
+        max_price: filters.maxPrice ? parseFloat(filters.maxPrice) : undefined,
+        sort_by: filters.sortBy || undefined,
+        in_stock: filters.inStock ? 1 : undefined,
+        search: filters.search || undefined,
+        is_featured: filters.isFeatured ? 1 : undefined,
+      };
 
-      if (filters.category) {
-        filteredProducts = filteredProducts.filter(product => 
-          product.category.toLowerCase().includes(filters.category.toLowerCase())
-        );
-      }
+      // Fetch products from the API
+      const response = await productAPI.getProducts(params);
 
-      if (filters.search) {
-        filteredProducts = filteredProducts.filter(product =>
-          product.name.toLowerCase().includes(filters.search.toLowerCase()) ||
-          product.description.toLowerCase().includes(filters.search.toLowerCase())
-        );
-      }
+      // Map API response to the Product interface
+      const fetchedProducts: Product[] = response.data.data.map((product: any) => ({
+        id: product.id.toString(),
+        name: product.name,
+        price: parseFloat(product.price),
+        // Use the first media item as the main image, or a fallback
+        image: product.media && product.media.length > 0 
+          ? `${import.meta.env.VITE_API_BASE_URL}/storage/${product.media[0].path}`
+          : 'https://via.placeholder.com/300',
+        images: product.media?.map((media: any) => 
+          `${import.meta.env.VITE_API_BASE_URL}/storage/${media.path}`) || [],
+        category: product.category?.name || 'Uncategorized',
+        description: product.description || '',
+        stock: product.stock || 0,
+        rating: product.rating || 0,
+        reviews_count: product.reviews_count || 0,
+        vintage: product.vintage || undefined,
+        alcohol_content: product.alcohol_content || undefined,
+        region: product.region || undefined,
+        is_featured: product.is_featured || false,
+      }));
 
-      if (filters.minPrice) {
-        filteredProducts = filteredProducts.filter(product => 
-          product.price >= parseFloat(filters.minPrice)
-        );
-      }
-
-      if (filters.maxPrice) {
-        filteredProducts = filteredProducts.filter(product => 
-          product.price <= parseFloat(filters.maxPrice)
-        );
-      }
-
-      if (filters.inStock) {
-        filteredProducts = filteredProducts.filter(product => product.stock > 0);
-      }
-
-      if (filters.isFeatured) {
-        filteredProducts = filteredProducts.filter(product => product.is_featured);
-      }
-
-      switch (filters.sortBy) {
-        case 'price':
-          filteredProducts.sort((a, b) => a.price - b.price);
-          break;
-        case 'price_desc':
-          filteredProducts.sort((a, b) => b.price - a.price);
-          break;
-        case 'name_desc':
-          filteredProducts.sort((a, b) => b.name.localeCompare(a.name));
-          break;
-        case 'rating':
-          filteredProducts.sort((a, b) => b.rating - a.rating);
-          break;
-        case 'newest':
-          filteredProducts.sort((a, b) => parseInt(b.id) - parseInt(a.id));
-          break;
-        default:
-          filteredProducts.sort((a, b) => a.name.localeCompare(a.name));
-      }
-
-      setProducts(filteredProducts);
+      setProducts(fetchedProducts);
       setError(null);
-    } catch (err) {
-      setError('Failed to fetch products');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to fetch products');
       console.error('Error fetching products:', err);
     } finally {
       setLoading(false);
