@@ -80,7 +80,7 @@ const CategoryManager: React.FC = () => {
     setIsLoading(true);
     try {
       const response = await adminAPI.getCategories({ page: pageNum });
-      console.log('Categories API Response:', response.data); // Debug log
+      console.log('Categories API Response:', response.data);
       const fetchedCategories = Array.isArray(response.data.data) ? response.data.data : [];
       setCategories(fetchedCategories);
       setTotalPages(Number(response.data.last_page) || 1);
@@ -94,6 +94,8 @@ const CategoryManager: React.FC = () => {
       });
       if (error.response?.status === 419) {
         toast.error('Session expired or CSRF token missing. Please log in again.');
+      } else if (error.response?.status === 405) {
+        toast.error('CSRF endpoint unavailable. Please check backend configuration.');
       } else {
         toast.error('Failed to load categories, using mock data');
       }
@@ -143,7 +145,7 @@ const CategoryManager: React.FC = () => {
       setEditingCategory(null);
       setImagePreview(null);
       resetForm();
-      setPage(1); // Reset to page 1
+      setPage(1);
       fetchCategories(1);
     } catch (error: any) {
       const message = error.response?.data?.message || 'Failed to save category';
@@ -151,6 +153,8 @@ const CategoryManager: React.FC = () => {
         toast.error('Session expired or CSRF token missing. Please log in again.');
       } else if (error.response?.status === 403) {
         toast.error('You do not have permission to perform this action');
+      } else if (error.response?.status === 405) {
+        toast.error('CSRF endpoint unavailable. Please check backend configuration.');
       } else {
         toast.error(message);
       }
@@ -169,7 +173,7 @@ const CategoryManager: React.FC = () => {
       description: category.description || '',
       image: null,
     });
-    setImagePreview(category.image ? `/storage/${category.image}` : null);
+    setImagePreview(category.image ? `${API_BASE_URL}/storage/${category.image}` : null); // Use full URL
     setShowModal(true);
   };
 
@@ -178,7 +182,7 @@ const CategoryManager: React.FC = () => {
       try {
         await adminAPI.deleteCategory(id);
         toast.success('Category deleted successfully!');
-        setPage(1); // Reset to page 1
+        setPage(1);
         fetchCategories(1);
       } catch (error: any) {
         const message = error.response?.data?.message || 'Failed to delete category';
@@ -186,6 +190,8 @@ const CategoryManager: React.FC = () => {
           toast.error('Session expired or CSRF token missing. Please log in again.');
         } else if (error.response?.status === 403) {
           toast.error('You do not have permission to perform this action');
+        } else if (error.response?.status === 405) {
+          toast.error('CSRF endpoint unavailable. Please check backend configuration.');
         } else {
           toast.error(message);
         }
@@ -280,10 +286,14 @@ const CategoryManager: React.FC = () => {
                     <div className="flex-1 flex items-start space-x-4">
                       {category.image && (
                         <img
-                          src={`/storage/${category.image}`}
+                          src={`${API_BASE_URL}/storage/${category.image}`} // Use full URL
                           alt={category.name || 'Category'}
                           crossOrigin="anonymous"
                           className="w-16 h-16 object-cover rounded-lg"
+                          onError={(e) => {
+                            console.error('Failed to load image:', e.currentTarget.src);
+                            e.currentTarget.src = '/fallback-image.jpg'; // Fallback image
+                          }}
                         />
                       )}
                       <div>
@@ -427,6 +437,10 @@ const CategoryManager: React.FC = () => {
                       alt="Preview"
                       crossOrigin="anonymous"
                       className="mt-2 w-32 h-32 object-cover rounded-lg"
+                      onError={(e) => {
+                        console.error('Failed to load image preview:', e.currentTarget.src);
+                        e.currentTarget.src = '/fallback-image.jpg';
+                      }}
                     />
                   )}
                 </div>

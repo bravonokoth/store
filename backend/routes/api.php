@@ -16,12 +16,17 @@ use App\Http\Controllers\Api\Admin\CouponController as AdminCouponController;
 use App\Http\Controllers\Api\Admin\InventoryController as AdminInventoryController;
 use App\Http\Controllers\Api\Admin\BannerController as AdminBannerController;
 use Illuminate\Support\Facades\Http;
+use Laravel\Sanctum\Http\Controllers\CsrfCookieController;
 
+// Register Sanctum CSRF route explicitly
+Route::get('/sanctum/csrf-cookie', [CsrfCookieController::class, 'show'])->name('sanctum.csrf-cookie');
+
+// Catch-all OPTIONS for CORS
 Route::options('{any}', function () {
     return response()->json([], 204)
         ->header('Access-Control-Allow-Origin', 'https://store-one-olive.vercel.app')
         ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-        ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+        ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-XSRF-TOKEN, ngrok-skip-browser-warning')
         ->header('Access-Control-Allow-Credentials', 'true');
 })->where('any', '.*');
 
