@@ -2,7 +2,7 @@ import React, { useState, useEffect, Component, ReactNode } from 'react';
 import { useSelector } from 'react-redux';
 import { Plus, Search, Edit, Trash2, Eye, Filter } from 'lucide-react';
 import { RootState } from '../../store/store';
-import { adminAPI, API_BASE_URL } from '../../services/api';
+import { adminAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
 // Error Boundary Component
