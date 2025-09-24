@@ -42,7 +42,7 @@ interface ProductGridProps {
     sortBy: string;
     inStock: boolean;
     search: string;
-    isFeatured: boolean;
+    isFeatured?: boolean; // Made optional
   };
   setFilters: (filters: ProductGridProps['filters']) => void;
   viewMode: 'grid' | 'list';
@@ -57,6 +57,16 @@ const ProductGrid: React.FC<ProductGridProps> = ({
   limit,
   showFilters = true
 }) => {
+  // Create a safe filters object with defaults
+  const safeFilters = {
+    category: filters.category || '',
+    minPrice: filters.minPrice || '',
+    maxPrice: filters.maxPrice || '',
+    sortBy: filters.sortBy || 'newest',
+    inStock: filters.inStock ?? true,
+    search: filters.search || '',
+    isFeatured: filters.isFeatured ?? false, // Default to false if not provided
+  };
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,10 +103,14 @@ const ProductGrid: React.FC<ProductGridProps> = ({
         sort_by: filters.sortBy || undefined,
         in_stock: filters.inStock ? 1 : undefined,
         search: filters.search || undefined,
-        is_featured: filters.isFeatured ? 1 : undefined,
+        // Only send is_featured if it's explicitly true
+        ...(filters.isFeatured === true && { is_featured: 1 }),
       };
 
+      console.log('API params being sent:', params); // Debug log
+
       const response = await productAPI.getProducts(params);
+      console.log('Products API response:', response.data); // Debug log
       const fetchedProducts: Product[] = response.data.data.map((product: any) => ({
         id: product.id.toString(),
         name: product.name,
@@ -270,7 +284,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
               <label className="flex items-center text-sm text-gray-600">
                 <input
                   type="checkbox"
-                  checked={filters.isFeatured}
+                  checked={filters.isFeatured || false}
                   onChange={(e) => setFilters({ ...filters, isFeatured: e.target.checked })}
                   className="mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
                 />
