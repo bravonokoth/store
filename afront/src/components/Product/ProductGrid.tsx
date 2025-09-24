@@ -42,14 +42,21 @@ interface ProductGridProps {
     sortBy: string;
     inStock: boolean;
     search: string;
-    isFeatured: boolean; // Changed from isFeatured?: boolean | undefined
+    isFeatured: boolean;
   };
   setFilters: (filters: ProductGridProps['filters']) => void;
   viewMode: 'grid' | 'list';
   limit?: number;
+  showFilters?: boolean;
 }
 
-const ProductGrid: React.FC<ProductGridProps> = ({ filters, setFilters, viewMode, limit }) => {
+const ProductGrid: React.FC<ProductGridProps> = ({ 
+  filters, 
+  setFilters, 
+  viewMode, 
+  limit,
+  showFilters = true
+}) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,9 +67,11 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, setFilters, viewMode
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchCategories();
+    if (showFilters) {
+      fetchCategories();
+    }
     fetchProducts();
-  }, [filters]);
+  }, [filters, showFilters]);
 
   const fetchCategories = async () => {
     try {
@@ -134,6 +143,22 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, setFilters, viewMode
       });
   };
 
+  const handleBuyNow = (product: Product) => {
+    if (product.stock === 0) {
+      toast.error('This product is out of stock');
+      return;
+    }
+    dispatch(addToCart({ product_id: product.id, quantity: 1 }))
+      .unwrap()
+      .then(() => {
+        toast.success('Added to cart! Proceeding to checkout...');
+        navigate('/checkout');
+      })
+      .catch((error) => {
+        toast.error(error || 'Failed to add to cart');
+      });
+  };
+
   const toggleWishlist = (productId: string) => {
     const newWishlist = new Set(wishlist);
     if (wishlist.has(productId)) {
@@ -185,74 +210,76 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, setFilters, viewMode
 
   return (
     <div>
-      {/* Filters Section */}
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">Filters</h3>
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="category-filter" className="block text-sm text-gray-600 mb-1">
-              Category
-            </label>
-            <select
-              id="category-filter"
-              value={filters.category}
-              onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-            >
-              <option value="">All Categories</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.name}>
-                  {category.name} ({category.products_count})
-                </option>
-              ))}
-            </select>
-          </div>
+      {/* Conditionally render filters section */}
+      {showFilters && (
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">Filters</h3>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="category-filter" className="block text-sm text-gray-600 mb-1">
+                Category
+              </label>
+              <select
+                id="category-filter"
+                value={filters.category}
+                onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="">All Categories</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.name}>
+                    {category.name} ({category.products_count})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Price Range</label>
-            <div className="flex space-x-2">
-              <input
-                type="number"
-                placeholder="Min Price"
-                value={filters.minPrice}
-                onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })}
-                className="w-1/2 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
-              <input
-                type="number"
-                placeholder="Max Price"
-                value={filters.maxPrice}
-                onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })}
-                className="w-1/2 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Price Range</label>
+              <div className="flex space-x-2">
+                <input
+                  type="number"
+                  placeholder="Min Price"
+                  value={filters.minPrice}
+                  onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })}
+                  className="w-1/2 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+                <input
+                  type="number"
+                  placeholder="Max Price"
+                  value={filters.maxPrice}
+                  onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })}
+                  className="w-1/2 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="flex items-center text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={filters.inStock}
+                  onChange={(e) => setFilters({ ...filters, inStock: e.target.checked })}
+                  className="mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                />
+                In Stock Only
+              </label>
+            </div>
+
+            <div>
+              <label className="flex items-center text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={filters.isFeatured}
+                  onChange={(e) => setFilters({ ...filters, isFeatured: e.target.checked })}
+                  className="mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                />
+                Featured Products Only
+              </label>
             </div>
           </div>
-
-          <div>
-            <label className="flex items-center text-sm text-gray-600">
-              <input
-                type="checkbox"
-                checked={filters.inStock}
-                onChange={(e) => setFilters({ ...filters, inStock: e.target.checked })}
-                className="mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-              />
-              In Stock Only
-            </label>
-          </div>
-
-          <div>
-            <label className="flex items-center text-sm text-gray-600">
-              <input
-                type="checkbox"
-                checked={filters.isFeatured}
-                onChange={(e) => setFilters({ ...filters, isFeatured: e.target.checked })}
-                className="mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-              />
-              Featured Products
-            </label>
-          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex items-center justify-between mb-4">
         <p className="text-gray-400 text-sm">
@@ -370,21 +397,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ filters, setFilters, viewMode
                     </span>
                   </button>
                   <button
-                    onClick={() => {
-                      if (product.stock === 0) {
-                        toast.error('This product is out of stock');
-                        return;
-                      }
-                      dispatch(addToCart({ product_id: product.id, quantity: 1 }))
-                        .unwrap()
-                        .then(() => {
-                          toast.success('Added to cart! Proceeding to checkout...');
-                          navigate('/checkout');
-                        })
-                        .catch((error) => {
-                          toast.error(error || 'Failed to add to cart');
-                        });
-                    }}
+                    onClick={() => handleBuyNow(product)}
                     disabled={product.stock === 0}
                     className={`flex items-center space-x-0.5 px-1.5 py-1 rounded-lg font-medium transition-all duration-300 text-[10px] ${
                       product.stock === 0
