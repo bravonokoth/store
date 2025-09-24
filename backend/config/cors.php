@@ -3,7 +3,7 @@
 return [
   'paths' => ['api/*', 'sanctum/csrf-cookie', 'storage/*', 'storage/categories/*', 'storage/products/*'],
   'allowed_methods' => ['*'],
-  'allowed_origins' => ['http://localhost:5173', 'https://store-one-olive.vercel.app', 'https://869b0f5bda6a.ngrok-free.app'],
+  'allowed_origins' => ['http://localhost:5173', 'https://store-one-olive.vercel.app', 'https://a1abadd5418b.ngrok-free.app'],
   'allowed_origins_patterns' => [],
   'allowed_headers' => ['Content-Type', 'Authorization', 'X-XSRF-TOKEN', 'ngrok-skip-browser-warning'],
   'exposed_headers' => [],
