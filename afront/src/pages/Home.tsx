@@ -18,15 +18,15 @@ interface Category {
 }
 
 const Home: React.FC = () => {
-  // State for filters - FIXED: Set isFeatured to false to show all products
+  // SIMPLIFIED filters - remove all restrictive filters
   const [filters, setFilters] = useState({
     category: '',
     minPrice: '',
     maxPrice: '',
     sortBy: 'newest',
-    inStock: true,
+    inStock: false, // Changed to false to show ALL products including out of stock
     search: '',
-    isFeatured: false, // Changed from true to false
+    // Completely removed isFeatured to avoid any filtering
   });
 
   // State for categories
@@ -50,6 +50,7 @@ const Home: React.FC = () => {
       setLoadingCategories(true);
       try {
         const response = await productAPI.getCategories();
+        console.log('Categories response:', response.data); // DEBUG LOG
         setCategories(response.data.data);
       } catch (err: any) {
         console.error('Error fetching categories:', err);
@@ -62,6 +63,22 @@ const Home: React.FC = () => {
     };
 
     fetchCategories();
+  }, []);
+
+  // DEBUG: Add a test to fetch products directly
+  useEffect(() => {
+    const testFetchProducts = async () => {
+      try {
+        console.log('Testing direct API call...');
+        const response = await productAPI.getProducts({});
+        console.log('Direct products API response:', response.data);
+        console.log('Number of products found:', response.data.data?.length || 0);
+      } catch (error) {
+        console.error('Error in direct API call:', error);
+      }
+    };
+
+    testFetchProducts();
   }, []);
 
   const features = [
@@ -91,6 +108,14 @@ const Home: React.FC = () => {
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
       <HeroSlider />
+
+      {/* DEBUG INFO */}
+      <div className="bg-yellow-100 p-4 text-sm">
+        <p><strong>Debug Info:</strong></p>
+        <p>Categories loaded: {categories.length}</p>
+        <p>Current filters: {JSON.stringify(filters)}</p>
+        <p>Check browser console for API responses</p>
+      </div>
 
       {/* Categories Section */}
       <section className="py-6 bg-gradient-to-b from-gray-50 to-white">
@@ -165,11 +190,11 @@ const Home: React.FC = () => {
           <div className="text-center mb-8">
             <div className="flex items-center justify-center space-x-2 mb-4">
               <Sparkles className="h-6 w-6 text-purple-600" />
-              <span className="text-purple-600 font-medium text-lg">Latest Products</span>
+              <span className="text-purple-600 font-medium text-lg">All Products</span>
             </div>
           </div>
 
-          {/* FIXED: Pass showFilters=false to hide duplicate filters on homepage */}
+          {/* SIMPLIFIED: Pass minimal filters to show ALL products */}
           <ProductGrid
             filters={filters}
             setFilters={setFilters}
