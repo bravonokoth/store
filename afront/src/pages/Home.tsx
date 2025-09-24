@@ -18,7 +18,7 @@ interface Category {
 }
 
 const Home: React.FC = () => {
-  // State for filters
+  // State for filters - FIXED: Set isFeatured to false to show all products
   const [filters, setFilters] = useState({
     category: '',
     minPrice: '',
@@ -26,7 +26,7 @@ const Home: React.FC = () => {
     sortBy: 'newest',
     inStock: true,
     search: '',
-    isFeatured: true,
+    isFeatured: false, // Changed from true to false
   });
 
   // State for categories
@@ -165,15 +165,17 @@ const Home: React.FC = () => {
           <div className="text-center mb-8">
             <div className="flex items-center justify-center space-x-2 mb-4">
               <Sparkles className="h-6 w-6 text-purple-600" />
-              <span className="text-purple-600 font-medium text-lg">Featured Liquor</span>
+              <span className="text-purple-600 font-medium text-lg">Latest Products</span>
             </div>
           </div>
 
+          {/* FIXED: Pass showFilters=false to hide duplicate filters on homepage */}
           <ProductGrid
             filters={filters}
             setFilters={setFilters}
             viewMode="grid"
             limit={4}
+            showFilters={false}
           />
 
           <div className="mt-8 flex justify-center">
