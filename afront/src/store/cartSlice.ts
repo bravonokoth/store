@@ -111,14 +111,18 @@ export const removeFromCart = createAsyncThunk(
   }
 );
 
-export const clearCart = createAsyncThunk('cart/clearCart', async (_, { getState }) => {
-  const { auth } = getState() as { auth: { isAuthenticated: boolean } };
-  if (auth.isAuthenticated) {
-    await cartAPI.clearCart();
-  } else {
-    localStorage.setItem('guest_cart', '[]');
+export const clearCart = createAsyncThunk(
+  'cart/clearCart',
+  async (_, { getState }) => {
+    const { auth } = getState() as { auth: { isAuthenticated: boolean } };
+    if (auth.isAuthenticated) {
+      await cartAPI.clearCart(); // ✅ no argument
+    } else {
+      localStorage.setItem('guest_cart', '[]');
+    }
   }
-});
+);
+
 
 const cartSlice = createSlice({
   name: 'cart',

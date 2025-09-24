@@ -108,6 +108,7 @@ export const productAPI = {
 // Cart API
 export const cartAPI = {
   getCart: () => api.get('/cart'),
+
   addToCart: async (data: any) => {
     try {
       await api.get('/sanctum/csrf-cookie');
@@ -116,6 +117,7 @@ export const cartAPI = {
     }
     return api.post('/cart', data);
   },
+
   updateCartItem: async (id: string, data: any) => {
     try {
       await api.get('/sanctum/csrf-cookie');
@@ -124,9 +126,14 @@ export const cartAPI = {
     }
     return api.put(`/cart/${id}`, data);
   },
+
+  // Remove a single item
   removeFromCart: (id: string) => api.delete(`/cart/${id}`),
-  clearCart: (id: string) => api.delete(`/cart/${id}`),
+
+  // Clear the whole cart (no id needed)
+  clearCart: () => api.delete('/cart'),
 };
+
 
 // Address API
 export const addressAPI = {
