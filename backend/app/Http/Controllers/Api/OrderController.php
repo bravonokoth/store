@@ -11,6 +11,7 @@ use App\Models\Address;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Http;
 
 class OrderController extends Controller
 {
@@ -90,6 +91,25 @@ class OrderController extends Controller
 
                 $product->decrement('stock', $item->quantity);
             }
+
+            // ✅ Initialize Paystack payment
+$response = Http::withToken(env('PAYSTACK_SECRET_KEY'))
+    ->post('https://api.paystack.co/transaction/initialize', [
+        'email' => $user?->email ?? 'guest@example.com',
+        'amount' => $total * 100, // kobo
+        'reference' => 'order_' . $order->id,
+        'callback_url' => url('/api/payment/callback'),
+    ]);
+
+$data = $response->json();
+
+if (!isset($data['data']['authorization_url'])) {
+    DB::rollBack();
+    return response()->json([
+        'message' => 'Payment initialization failed',
+        'error' => $data
+    ], 500);
+}
 
             // ✅ Clear cart
             if ($user) {

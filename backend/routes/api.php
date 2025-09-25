@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\Admin\MediaController as AdminMediaController;
 use App\Http\Controllers\Api\Admin\CouponController as AdminCouponController;
 use App\Http\Controllers\Api\Admin\InventoryController as AdminInventoryController;
 use App\Http\Controllers\Api\Admin\BannerController as AdminBannerController;
+use App\Http\Controllers\Api\PaymentController;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Http\Controllers\CsrfCookieController;
 
@@ -47,6 +48,8 @@ Route::prefix('products')->group(function () {
     Route::get('/categories', [ProductController::class, 'categories']);
 });
 
+Route::post('/payment/initiate', [PaymentController::class, 'initialize']);
+Route::get('/payment/callback', [PaymentController::class, 'callback']);
 
 
 Route::get('/categories', [CategoryController::class, 'index']);

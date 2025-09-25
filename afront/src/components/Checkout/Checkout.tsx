@@ -3,12 +3,13 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store/store';
 import { clearCart, fetchCart, removeFromCart, updateCartItem } from '../../store/cartSlice';
-import { orderAPI, addressAPI } from '../../services/api';
-import { Check, CreditCard, MapPin, Package, Shield, Truck, Trash2, Plus, Minus } from 'lucide-react';
+import { orderAPI } from '../../services/api';
+import { Check, MapPin, Package, Shield, Truck, Trash2, Plus, Minus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { Dialog, Transition } from '@headlessui/react';
 import validator from 'validator';
+import axios from 'axios';
 
 interface Address {
   firstName: string;
@@ -20,13 +21,6 @@ interface Address {
   city: string;
   state: string;
   zipCode: string;
-}
-
-interface PaymentInfo {
-  cardNumber: string;
-  expiryDate: string;
-  cvv: string;
-  nameOnCard: string;
 }
 
 const Checkout: React.FC = () => {
@@ -52,12 +46,6 @@ const Checkout: React.FC = () => {
   });
   const [billingAddress, setBillingAddress] = useState<Address>({ ...shippingAddress });
   const [sameBillingAddress, setSameBillingAddress] = useState(true);
-  const [paymentInfo, setPaymentInfo] = useState<PaymentInfo>({
-    cardNumber: '',
-    expiryDate: '',
-    cvv: '',
-    nameOnCard: '',
-  });
 
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
@@ -114,6 +102,8 @@ const Checkout: React.FC = () => {
     });
   };
 
+
+
   const handleModalSubmit = () => {
     setShippingAddress(prev => ({
       ...prev,
@@ -142,13 +132,11 @@ const Checkout: React.FC = () => {
 
   const validateForm = (): boolean => {
     const shippingRequired = ['firstName', 'lastName', 'email', 'phone', 'address'];
-    const paymentRequired = ['cardNumber', 'expiryDate', 'cvv', 'nameOnCard'];
     const isShippingValid =
       shippingRequired.every(field => shippingAddress[field as keyof Address]?.trim() !== '') &&
       validator.isEmail(shippingAddress.email) &&
-      validator.isMobilePhone(shippingAddress.phone, 'ke-KE');
-    const isPaymentValid = paymentRequired.every(field => paymentInfo[field as keyof PaymentInfo]?.trim() !== '');
-    return items.length > 0 && isShippingValid && isPaymentValid;
+      validator.isMobilePhone(shippingAddress.phone, 'any');
+    return items.length > 0 && isShippingValid;
   };
 
   const handleRemoveItem = async (id: string) => {
@@ -170,7 +158,7 @@ const Checkout: React.FC = () => {
     }
   };
 
-  const handleSubmitOrder = async () => {
+  const handlePaystackPayment = async () => {
     if (!validateForm()) {
       toast.error('Please fill in all required fields');
       return;
@@ -178,38 +166,62 @@ const Checkout: React.FC = () => {
 
     setIsProcessing(true);
     try {
-      await orderAPI.createOrder({
+      // First create the order with pending payment status
+      const orderData = {
         items,
         shippingAddress,
         billingAddress: sameBillingAddress ? shippingAddress : billingAddress,
-        paymentInfo,
+        paymentInfo: null, // No payment info needed for Paystack integration
         total: finalTotal,
-        sessionId: isAuthenticated ? undefined : localStorage.getItem('sessionId'),
+        sessionId: isAuthenticated ? undefined : localStorage.getItem('sessionId') || undefined,
+        paymentStatus: 'pending'
+      };
+
+      // Create order and get order ID
+      const orderResponse = await orderAPI.createOrder(orderData);
+      const orderId = orderResponse.data.id;
+
+      // Initiate Paystack payment
+      const paymentResponse = await axios.post("http://127.0.0.1:8000/api/payment/initiate", {
+        email: shippingAddress.email,
+        amount: Math.round(finalTotal * 100), // Convert to kobo (Paystack expects amount in smallest currency unit)
+        orderId, // Include order ID for reference
+        metadata: {
+          orderId,
+          customerId: isAuthenticated ? user?.id : localStorage.getItem('sessionId'),
+          customerName: `${shippingAddress.firstName} ${shippingAddress.lastName}`,
+          phone: shippingAddress.phone
+        }
       });
-      dispatch(clearCart());
-      if (!isAuthenticated) {
-        localStorage.removeItem('sessionId');
-        localStorage.removeItem('guest_cart');
+
+      if (paymentResponse.data.data.authorization_url) {
+        // Store order info for later reference
+        if (!isAuthenticated) {
+          localStorage.setItem('pendingOrderId', orderId);
+        }
+        
+        // Clear cart after successful payment initiation
+        dispatch(clearCart());
+        if (!isAuthenticated) {
+          localStorage.removeItem('sessionId');
+          localStorage.removeItem('guest_cart');
+        }
+        
+        // Redirect user to Paystack hosted page
+        window.location.href = paymentResponse.data.data.authorization_url;
+      } else {
+        toast.error('Failed to initialize payment');
       }
-      toast.success('Order placed successfully!');
-      navigate(isAuthenticated ? '/dashboard' : '/order-confirmation');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to place order');
+      console.error("Payment initiation failed:", error);
+      toast.error(error.response?.data?.message || 'Failed to initialize payment');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const formatCardNumber = (value: string) => {
-    return value.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
-  };
-
-  const formatExpiryDate = (value: string) => {
-    return value.replace(/\D/g, '').replace(/^(\d{2})(\d{2})$/, '$1/$2');
-  };
-
   const handleInputChange = (
-    target: 'shipping' | 'billing' | 'payment' | 'temp',
+    target: 'shipping' | 'billing' | 'temp',
     field: string,
     value: string
   ) => {
@@ -222,14 +234,6 @@ const Checkout: React.FC = () => {
         break;
       case 'billing':
         setBillingAddress(prev => ({ ...prev, [field]: value }));
-        break;
-      case 'payment':
-        if (field === 'cardNumber') {
-          value = formatCardNumber(value);
-        } else if (field === 'expiryDate') {
-          value = formatExpiryDate(value);
-        }
-        setPaymentInfo(prev => ({ ...prev, [field]: value }));
         break;
       case 'temp':
         setTempAddress(prev => ({ ...prev, [field]: value }));
@@ -419,161 +423,120 @@ const Checkout: React.FC = () => {
               </form>
             </div>
 
-            {/* Payment Information */}
+            {/* Billing Address Section */}
             <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <CreditCard className="h-5 w-5 mr-2" /> Payment Information
-              </h2>
-              <div className="mb-4">
-                <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border-2 border-purple-500">
-                  <CreditCard className="h-5 w-5 text-purple-600" />
-                  <span className="text-gray-900 text-sm font-medium">Credit Card</span>
-                </div>
+              <div className="flex items-center space-x-2 mb-4">
+                <input
+                  type="checkbox"
+                  id="sameBilling"
+                  checked={sameBillingAddress}
+                  onChange={(e) => setSameBillingAddress(e.target.checked)}
+                  className="w-4 h-4 text-purple-600 bg-gray-50 border-gray-300 rounded focus:ring-purple-500"
+                />
+                <label htmlFor="sameBilling" className="text-sm text-gray-900">Billing address same as shipping</label>
               </div>
-              <form className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Name on Card *</label>
-                  <input
-                    type="text"
-                    value={paymentInfo.nameOnCard}
-                    onChange={(e) => handleInputChange('payment', 'nameOnCard', e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Card Number *</label>
-                  <input
-                    type="text"
-                    value={paymentInfo.cardNumber}
-                    onChange={(e) => handleInputChange('payment', 'cardNumber', e.target.value)}
-                    placeholder="1234 5678 9012 3456"
-                    maxLength={19}
-                    className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Expiry Date *</label>
-                    <input
-                      type="text"
-                      value={paymentInfo.expiryDate}
-                      onChange={(e) => handleInputChange('payment', 'expiryDate', e.target.value)}
-                      placeholder="MM/YY"
-                      maxLength={5}
-                      className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">CVV *</label>
-                    <input
-                      type="text"
-                      value={paymentInfo.cvv}
-                      onChange={(e) => handleInputChange('payment', 'cvv', e.target.value)}
-                      placeholder="123"
-                      maxLength={4}
-                      className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                      required
-                    />
-                  </div>
-                </div>
-              </form>
-              <div className="mt-4">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="sameBilling"
-                    checked={sameBillingAddress}
-                    onChange={(e) => setSameBillingAddress(e.target.checked)}
-                    className="w-4 h-4 text-purple-600 bg-gray-50 border-gray-300 rounded focus:ring-purple-500"
-                  />
-                  <label htmlFor="sameBilling" className="text-sm text-gray-900">Billing address same as shipping</label>
-                </div>
-                {!sameBillingAddress && (
-                  <div className="mt-4 space-y-4">
-                    <h3 className="text-sm font-semibold text-gray-900">Billing Address</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
-                        <input
-                          type="text"
-                          value={billingAddress.firstName}
-                          onChange={(e) => handleInputChange('billing', 'firstName', e.target.value)}
-                          className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Last Name *</label>
-                        <input
-                          type="text"
-                          value={billingAddress.lastName}
-                          onChange={(e) => handleInputChange('billing', 'lastName', e.target.value)}
-                          className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                          required
-                        />
-                      </div>
-                    </div>
+              {!sameBillingAddress && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-900">Billing Address</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Address *</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
                       <input
                         type="text"
-                        value={billingAddress.address}
-                        onChange={(e) => handleInputChange('billing', 'address', e.target.value)}
+                        value={billingAddress.firstName}
+                        onChange={(e) => handleInputChange('billing', 'firstName', e.target.value)}
                         className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Apartment, Door, or Flat Number (optional)</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Last Name *</label>
                       <input
                         type="text"
-                        value={billingAddress.apartment}
-                        onChange={(e) => handleInputChange('billing', 'apartment', e.target.value)}
+                        value={billingAddress.lastName}
+                        onChange={(e) => handleInputChange('billing', 'lastName', e.target.value)}
                         className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
-                        <input
-                          type="text"
-                          value="Nairobi"
-                          disabled
-                          className="w-full bg-gray-200 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">County</label>
-                        <input
-                          type="text"
-                          value="Nairobi"
-                          disabled
-                          className="w-full bg-gray-200 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Postal Code (optional)</label>
-                      <input
-                        type="text"
-                        value={billingAddress.zipCode}
-                        onChange={(e) => handleInputChange('billing', 'zipCode', e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+                        required
                       />
                     </div>
                   </div>
-                )}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Address *</label>
+                    <input
+                      type="text"
+                      value={billingAddress.address}
+                      onChange={(e) => handleInputChange('billing', 'address', e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Apartment, Door, or Flat Number (optional)</label>
+                    <input
+                      type="text"
+                      value={billingAddress.apartment}
+                      onChange={(e) => handleInputChange('billing', 'apartment', e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
+                      <input
+                        type="text"
+                        value="Nairobi"
+                        disabled
+                        className="w-full bg-gray-200 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">County</label>
+                      <input
+                        type="text"
+                        value="Nairobi"
+                        disabled
+                        className="w-full bg-gray-200 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Postal Code (optional)</label>
+                    <input
+                      type="text"
+                      value={billingAddress.zipCode}
+                      onChange={(e) => handleInputChange('billing', 'zipCode', e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Payment Information */}
+            <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Payment Method</h2>
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="flex-shrink-0">
+                    <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-green-800">Secure Payment with Paystack</h3>
+                    <p className="text-xs text-green-600 mt-1">
+                      Your payment will be processed securely through Paystack. You'll be redirected to complete your payment.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Place Order Button */}
             <button
-              onClick={handleSubmitOrder}
-              disabled={isProcessing}
-              className="w-full flex items-center justify-center space-x-2 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-xl text-sm transition-all duration-300"
+              onClick={handlePaystackPayment}
+              disabled={isProcessing || !validateForm()}
+              className="w-full flex items-center justify-center space-x-2 px-6 py-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-xl text-lg font-semibold transition-all duration-300"
             >
               {isProcessing ? (
                 <>
@@ -582,8 +545,8 @@ const Checkout: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <span>Place Order</span>
-                  <Check className="h-5 w-5" />
+                  <span>Pay with Paystack</span>
+                  <span className="font-bold">Ksh {finalTotal.toFixed(2)}</span>
                 </>
               )}
             </button>
@@ -639,7 +602,7 @@ const Checkout: React.FC = () => {
               <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
                 <div className="flex items-center space-x-2 text-green-600 text-sm">
                   <Shield className="h-4 w-4" />
-                  <span>Secure SSL Encryption</span>
+                  <span>Secure Payment with Paystack</span>
                 </div>
                 <div className="flex items-center space-x-2 text-blue-600 text-sm">
                   <Truck className="h-4 w-4" />
@@ -756,5 +719,3 @@ const Checkout: React.FC = () => {
     </div>
   );
 };
-
-export default Checkout;
