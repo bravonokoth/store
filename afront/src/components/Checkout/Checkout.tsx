@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Fragment } from 'react';
+import React, { useState, useEffect, Fragment, useCallback, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store/store';
@@ -46,51 +46,74 @@ export const Checkout: React.FC = () => {
   });
   const [billingAddress, setBillingAddress] = useState<Address>({ ...shippingAddress });
   const [sameBillingAddress, setSameBillingAddress] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const { items, total, isLoading, error } = useSelector((state: RootState) => state.cart);
   const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
 
+  // Memoized calculations for better performance
+  const orderCalculations = useMemo(() => {
+    const tax = total * 0.08;
+    const shipping = total > 1000 ? 0 : 50;
+    const finalTotal = total + tax + shipping;
+    return { tax, shipping, finalTotal };
+  }, [total]);
+
+  // Initialize session and fetch cart only once
   useEffect(() => {
-    // Initialize session ID for guest users
-    if (!isAuthenticated && !localStorage.getItem('sessionId')) {
-      const sessionId = uuidv4();
-      localStorage.setItem('sessionId', sessionId);
-    }
+    const initializeCheckout = async () => {
+      // Initialize session ID for guest users
+      if (!isAuthenticated && !localStorage.getItem('sessionId')) {
+        const sessionId = uuidv4();
+        localStorage.setItem('sessionId', sessionId);
+      }
 
-    // Fetch cart only if not already loading
-    if (!isLoading) {
-      dispatch(fetchCart());
-    }
+      // Fetch cart only if not already loading and not initialized
+      if (!isLoading && !isInitialized) {
+        await dispatch(fetchCart());
+        setIsInitialized(true);
+      }
+    };
 
-    // Redirect to cart if empty
-    if (!isLoading && items.length === 0) {
-      navigate('/cart');
-    }
+    initializeCheckout();
+  }, [isAuthenticated, dispatch, isLoading, isInitialized]);
 
-    // Pre-fill user data if available
-    if (user) {
+  // Separate effect for user data population
+  useEffect(() => {
+    if (user && isInitialized) {
+      const firstName = user.name?.split(' ')[0] || '';
+      const lastName = user.name?.split(' ').slice(1).join(' ') || '';
+      
       setShippingAddress(prev => ({
         ...prev,
-        firstName: user.name?.split(' ')[0] || '',
-        lastName: user.name?.split(' ').slice(1).join(' ') || '',
+        firstName,
+        lastName,
         email: user.email,
         phone: user.phone || '',
       }));
+      
       if (sameBillingAddress) {
         setBillingAddress(prev => ({
           ...prev,
-          firstName: user.name?.split(' ')[0] || '',
-          lastName: user.name?.split(' ').slice(1).join(' ') || '',
+          firstName,
+          lastName,
           email: user.email,
           phone: user.phone || '',
         }));
       }
     }
-  }, [user, isAuthenticated, dispatch, navigate, isLoading]);
+  }, [user, sameBillingAddress, isInitialized]);
 
-  const handleAddNewAddress = () => {
+  // Separate effect for cart validation and redirect
+  useEffect(() => {
+    if (isInitialized && !isLoading && items.length === 0) {
+      navigate('/cart');
+    }
+  }, [isInitialized, isLoading, items.length, navigate]);
+
+  const handleAddNewAddress = useCallback(() => {
     console.log('Add New Address clicked');
     setIsModalOpen(true);
     setTempAddress({
@@ -100,55 +123,45 @@ export const Checkout: React.FC = () => {
       state: 'Nairobi',
       zipCode: '',
     });
-  };
+  }, []);
 
-
-
-  const handleModalSubmit = () => {
-    setShippingAddress(prev => ({
-      ...prev,
+  const handleModalSubmit = useCallback(() => {
+    const updatedAddress = {
       address: tempAddress.address || '',
       apartment: tempAddress.apartment || '',
       city: 'Nairobi',
       state: 'Nairobi',
       zipCode: tempAddress.zipCode || '',
-    }));
+    };
+
+    setShippingAddress(prev => ({ ...prev, ...updatedAddress }));
+    
     if (sameBillingAddress) {
-      setBillingAddress(prev => ({
-        ...prev,
-        address: tempAddress.address || '',
-        apartment: tempAddress.apartment || '',
-        city: 'Nairobi',
-        state: 'Nairobi',
-        zipCode: tempAddress.zipCode || '',
-      }));
+      setBillingAddress(prev => ({ ...prev, ...updatedAddress }));
     }
+    
     setIsModalOpen(false);
-  };
+  }, [tempAddress, sameBillingAddress]);
 
-  const tax = total * 0.08;
-  const shipping = total > 1000 ? 0 : 50;
-  const finalTotal = total + tax + shipping;
-
-  const validateForm = (): boolean => {
+  const validateForm = useCallback((): boolean => {
     const shippingRequired = ['firstName', 'lastName', 'email', 'phone', 'address'];
     const isShippingValid =
       shippingRequired.every(field => shippingAddress[field as keyof Address]?.trim() !== '') &&
       validator.isEmail(shippingAddress.email) &&
       validator.isMobilePhone(shippingAddress.phone, 'any');
     return items.length > 0 && isShippingValid;
-  };
+  }, [shippingAddress, items.length]);
 
-  const handleRemoveItem = async (id: string) => {
+  const handleRemoveItem = useCallback(async (id: string) => {
     try {
       await dispatch(removeFromCart(id)).unwrap();
       toast.success('Item removed from cart');
     } catch (err) {
       toast.error('Failed to remove item');
     }
-  };
+  }, [dispatch]);
 
-  const handleUpdateQuantity = async (id: string, quantity: number) => {
+  const handleUpdateQuantity = useCallback(async (id: string, quantity: number) => {
     if (quantity < 1) return;
     try {
       await dispatch(updateCartItem({ id, quantity })).unwrap();
@@ -156,9 +169,9 @@ export const Checkout: React.FC = () => {
     } catch (err) {
       toast.error('Failed to update cart');
     }
-  };
+  }, [dispatch]);
 
-  const handlePaystackPayment = async () => {
+  const handlePaystackPayment = useCallback(async () => {
     if (!validateForm()) {
       toast.error('Please fill in all required fields');
       return;
@@ -166,26 +179,23 @@ export const Checkout: React.FC = () => {
 
     setIsProcessing(true);
     try {
-      // First create the order with pending payment status
       const orderData = {
         items,
         shippingAddress,
         billingAddress: sameBillingAddress ? shippingAddress : billingAddress,
-        paymentInfo: null, // No payment info needed for Paystack integration
-        total: finalTotal,
+        paymentInfo: null,
+        total: orderCalculations.finalTotal,
         sessionId: isAuthenticated ? undefined : localStorage.getItem('sessionId') || undefined,
         paymentStatus: 'pending'
       };
 
-      // Create order and get order ID
       const orderResponse = await orderAPI.createOrder(orderData);
       const orderId = orderResponse.data.id;
 
-      // Initiate Paystack payment
       const paymentResponse = await axios.post("http://127.0.0.1:8000/api/payment/initiate", {
         email: shippingAddress.email,
-        amount: Math.round(finalTotal * 100), // Convert to kobo (Paystack expects amount in smallest currency unit)
-        orderId, // Include order ID for reference
+        amount: Math.round(orderCalculations.finalTotal * 100),
+        orderId,
         metadata: {
           orderId,
           customerId: isAuthenticated ? user?.id : localStorage.getItem('sessionId'),
@@ -195,19 +205,16 @@ export const Checkout: React.FC = () => {
       });
 
       if (paymentResponse.data.data.authorization_url) {
-        // Store order info for later reference
         if (!isAuthenticated) {
           localStorage.setItem('pendingOrderId', orderId);
         }
         
-        // Clear cart after successful payment initiation
         dispatch(clearCart());
         if (!isAuthenticated) {
           localStorage.removeItem('sessionId');
           localStorage.removeItem('guest_cart');
         }
         
-        // Redirect user to Paystack hosted page
         window.location.href = paymentResponse.data.data.authorization_url;
       } else {
         toast.error('Failed to initialize payment');
@@ -218,9 +225,9 @@ export const Checkout: React.FC = () => {
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [validateForm, items, shippingAddress, billingAddress, sameBillingAddress, orderCalculations.finalTotal, isAuthenticated, user?.id, dispatch]);
 
-  const handleInputChange = (
+  const handleInputChange = useCallback((
     target: 'shipping' | 'billing' | 'temp',
     field: string,
     value: string
@@ -239,10 +246,18 @@ export const Checkout: React.FC = () => {
         setTempAddress(prev => ({ ...prev, [field]: value }));
         break;
     }
-  };
+  }, [sameBillingAddress]);
 
-  if (isLoading) {
-    return <div className="container mx-auto py-8 text-gray-900">Loading...</div>;
+  // Show loading state
+  if (isLoading || !isInitialized) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-purple-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading checkout...</p>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
@@ -290,14 +305,16 @@ export const Checkout: React.FC = () => {
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                        className="p-1 bg-gray-200 rounded-full text-gray-900"
+                        className="p-1 bg-gray-200 rounded-full text-gray-900 hover:bg-gray-300"
+                        disabled={isProcessing}
                       >
                         <Minus className="h-3 w-3" />
                       </button>
-                      <span className="text-sm text-gray-900">{item.quantity}</span>
+                      <span className="text-sm text-gray-900 min-w-[20px] text-center">{item.quantity}</span>
                       <button
                         onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                        className="p-1 bg-gray-200 rounded-full text-gray-900"
+                        className="p-1 bg-gray-200 rounded-full text-gray-900 hover:bg-gray-300"
+                        disabled={isProcessing}
                       >
                         <Plus className="h-3 w-3" />
                       </button>
@@ -306,6 +323,7 @@ export const Checkout: React.FC = () => {
                       onClick={() => handleRemoveItem(item.id)}
                       className="text-red-600 hover:text-red-500"
                       title="Remove item"
+                      disabled={isProcessing}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -546,13 +564,13 @@ export const Checkout: React.FC = () => {
               ) : (
                 <>
                   <span>Pay with Paystack</span>
-                  <span className="font-bold">Ksh {finalTotal.toFixed(2)}</span>
+                  <span className="font-bold">Ksh {orderCalculations.finalTotal.toFixed(2)}</span>
                 </>
               )}
             </button>
           </div>
 
-          {/* Order Summary Sidebar */}
+          {/* Order Summary Sidebar - THIS IS THE RIGHT SIDE SUMMARY */}
           <div className="lg:col-span-1">
             <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm sticky top-24">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h3>
@@ -586,17 +604,17 @@ export const Checkout: React.FC = () => {
                 </div>
                 <div className="flex justify-between text-gray-600 text-sm">
                   <span>Shipping</span>
-                  <span className={shipping === 0 ? 'text-green-600' : 'text-gray-600'}>
-                    {shipping === 0 ? 'Free' : `Ksh ${shipping.toFixed(2)}`}
+                  <span className={orderCalculations.shipping === 0 ? 'text-green-600' : 'text-gray-600'}>
+                    {orderCalculations.shipping === 0 ? 'Free' : `Ksh ${orderCalculations.shipping.toFixed(2)}`}
                   </span>
                 </div>
                 <div className="flex justify-between text-gray-600 text-sm">
                   <span>Tax</span>
-                  <span>Ksh {tax.toFixed(2)}</span>
+                  <span>Ksh {orderCalculations.tax.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-lg font-semibold text-gray-900 border-t border-gray-200 pt-3">
                   <span>Total</span>
-                  <span>Ksh {finalTotal.toFixed(2)}</span>
+                  <span>Ksh {orderCalculations.finalTotal.toFixed(2)}</span>
                 </div>
               </div>
               <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
@@ -697,13 +715,13 @@ export const Checkout: React.FC = () => {
                     <div className="flex justify-end space-x-4">
                       <button
                         onClick={() => setIsModalOpen(false)}
-                        className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg text-sm"
+                        className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg text-sm hover:bg-gray-300"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={handleModalSubmit}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm"
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:bg-gray-400"
                         disabled={!tempAddress.address}
                       >
                         Save Address
@@ -718,7 +736,4 @@ export const Checkout: React.FC = () => {
       </div>
     </div>
   );
-
-  
 };
-
