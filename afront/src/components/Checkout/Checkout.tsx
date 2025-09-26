@@ -23,7 +23,7 @@ interface Address {
   zipCode: string;
 }
 
-const Checkout: React.FC = () => {
+export const Checkout: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [tempAddress, setTempAddress] = useState<Partial<Address>>({
@@ -718,4 +718,7 @@ const Checkout: React.FC = () => {
       </div>
     </div>
   );
+
+  
 };
+
