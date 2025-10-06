@@ -2,14 +2,28 @@ import React, { useState, useEffect, Fragment, useCallback, useMemo } from 'reac
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store/store';
-import { clearCart } from '../../store/cartSlice'; // Removed fetchCart, removeFromCart, updateCartItem
+import { clearCart } from '../../store/cartSlice';
 import { checkoutAPI, orderAPI, cartAPI } from '../../services/api';
 import { Check, MapPin, Package, Shield, Truck, Trash2, Plus, Minus, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { Dialog, Transition } from '@headlessui/react';
 import validator from 'validator';
-import { debounce } from 'lodash';
+
+// Custom debounce function
+function debounce<T extends (...args: any[]) => void>(func: T, wait: number): (...args: Parameters<T>) => void {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+
+  return function (...args: Parameters<T>) {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+    timeout = setTimeout(() => {
+      func(...args);
+      timeout = null;
+    }, wait);
+  };
+}
 
 interface Address {
   firstName: string;
