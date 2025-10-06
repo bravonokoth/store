@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store/store';
 import { clearCart, fetchCart, removeFromCart, updateCartItem } from '../../store/cartSlice';
 import { orderAPI } from '../../services/api';
-import { Check, MapPin, Package, Shield, Truck, Trash2, Plus, Minus } from 'lucide-react';
+import { Check, MapPin, Package, Shield, Truck, Trash2, Plus, Minus, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { Dialog, Transition } from '@headlessui/react';
@@ -26,6 +26,7 @@ interface Address {
 export const Checkout: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
   const [tempAddress, setTempAddress] = useState<Partial<Address>>({
     address: '',
     apartment: '',
@@ -53,36 +54,55 @@ export const Checkout: React.FC = () => {
   const { items, total, isLoading, error } = useSelector((state: RootState) => state.cart);
   const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
 
+  // Debug function to log information
+  const addDebugInfo = useCallback((info: string) => {
+    console.log('DEBUG:', info);
+    setDebugInfo(prev => [...prev.slice(-9), `${new Date().toLocaleTimeString()}: ${info}`]);
+  }, []);
+
   // Memoized calculations for better performance
   const orderCalculations = useMemo(() => {
+    addDebugInfo(`Calculating totals - Cart total: ${total}, Items count: ${items.length}`);
     const tax = total * 0.08;
     const shipping = total > 1000 ? 0 : 50;
     const finalTotal = total + tax + shipping;
+    
+    addDebugInfo(`Final calculations - Tax: ${tax}, Shipping: ${shipping}, Total: ${finalTotal}`);
     return { tax, shipping, finalTotal };
-  }, [total]);
+  }, [total, items.length, addDebugInfo]);
 
   // Initialize session and fetch cart only once
   useEffect(() => {
     const initializeCheckout = async () => {
+      addDebugInfo('Initializing checkout...');
+      
       // Initialize session ID for guest users
       if (!isAuthenticated && !localStorage.getItem('sessionId')) {
         const sessionId = uuidv4();
         localStorage.setItem('sessionId', sessionId);
+        addDebugInfo(`Created new session ID: ${sessionId}`);
       }
 
       // Fetch cart only if not already loading and not initialized
       if (!isLoading && !isInitialized) {
-        await dispatch(fetchCart());
-        setIsInitialized(true);
+        addDebugInfo('Fetching cart data...');
+        try {
+          await dispatch(fetchCart());
+          addDebugInfo('Cart fetch completed successfully');
+          setIsInitialized(true);
+        } catch (error) {
+          addDebugInfo(`Cart fetch failed: ${error}`);
+        }
       }
     };
 
     initializeCheckout();
-  }, [isAuthenticated, dispatch, isLoading, isInitialized]);
+  }, [isAuthenticated, dispatch, isLoading, isInitialized, addDebugInfo]);
 
   // Separate effect for user data population
   useEffect(() => {
     if (user && isInitialized) {
+      addDebugInfo(`Populating user data: ${user.name}, ${user.email}`);
       const firstName = user.name?.split(' ')[0] || '';
       const lastName = user.name?.split(' ').slice(1).join(' ') || '';
       
@@ -104,14 +124,18 @@ export const Checkout: React.FC = () => {
         }));
       }
     }
-  }, [user, sameBillingAddress, isInitialized]);
+  }, [user, sameBillingAddress, isInitialized, addDebugInfo]);
 
   // Separate effect for cart validation and redirect
   useEffect(() => {
-    if (isInitialized && !isLoading && items.length === 0) {
-      navigate('/cart');
+    if (isInitialized && !isLoading) {
+      addDebugInfo(`Cart check - Items: ${items.length}, Loading: ${isLoading}`);
+      if (items.length === 0) {
+        addDebugInfo('Cart is empty, redirecting...');
+        navigate('/cart');
+      }
     }
-  }, [isInitialized, isLoading, items.length, navigate]);
+  }, [isInitialized, isLoading, items.length, navigate, addDebugInfo]);
 
   const handleAddNewAddress = useCallback(() => {
     console.log('Add New Address clicked');
@@ -141,7 +165,8 @@ export const Checkout: React.FC = () => {
     }
     
     setIsModalOpen(false);
-  }, [tempAddress, sameBillingAddress]);
+    addDebugInfo('Address updated successfully');
+  }, [tempAddress, sameBillingAddress, addDebugInfo]);
 
   const validateForm = useCallback((): boolean => {
     const shippingRequired = ['firstName', 'lastName', 'email', 'phone', 'address'];
@@ -149,27 +174,36 @@ export const Checkout: React.FC = () => {
       shippingRequired.every(field => shippingAddress[field as keyof Address]?.trim() !== '') &&
       validator.isEmail(shippingAddress.email) &&
       validator.isMobilePhone(shippingAddress.phone, 'any');
-    return items.length > 0 && isShippingValid;
-  }, [shippingAddress, items.length]);
+    
+    const isValid = items.length > 0 && isShippingValid;
+    addDebugInfo(`Form validation - Valid: ${isValid}, Items: ${items.length}, Shipping valid: ${isShippingValid}`);
+    return isValid;
+  }, [shippingAddress, items.length, addDebugInfo]);
 
   const handleRemoveItem = useCallback(async (id: string) => {
+    addDebugInfo(`Removing item: ${id}`);
     try {
       await dispatch(removeFromCart(id)).unwrap();
       toast.success('Item removed from cart');
+      addDebugInfo('Item removed successfully');
     } catch (err) {
+      addDebugInfo(`Failed to remove item: ${err}`);
       toast.error('Failed to remove item');
     }
-  }, [dispatch]);
+  }, [dispatch, addDebugInfo]);
 
   const handleUpdateQuantity = useCallback(async (id: string, quantity: number) => {
     if (quantity < 1) return;
+    addDebugInfo(`Updating quantity for ${id} to ${quantity}`);
     try {
       await dispatch(updateCartItem({ id, quantity })).unwrap();
       toast.success('Cart updated');
+      addDebugInfo('Quantity updated successfully');
     } catch (err) {
+      addDebugInfo(`Failed to update quantity: ${err}`);
       toast.error('Failed to update cart');
     }
-  }, [dispatch]);
+  }, [dispatch, addDebugInfo]);
 
   const handlePaystackPayment = useCallback(async () => {
     if (!validateForm()) {
@@ -177,6 +211,7 @@ export const Checkout: React.FC = () => {
       return;
     }
 
+    addDebugInfo(`Starting payment process - Total: ${orderCalculations.finalTotal}`);
     setIsProcessing(true);
     try {
       const orderData = {
@@ -189,9 +224,12 @@ export const Checkout: React.FC = () => {
         paymentStatus: 'pending'
       };
 
+      addDebugInfo('Creating order...');
       const orderResponse = await orderAPI.createOrder(orderData);
       const orderId = orderResponse.data.id;
+      addDebugInfo(`Order created with ID: ${orderId}`);
 
+      addDebugInfo('Initiating Paystack payment...');
       const paymentResponse = await axios.post("http://127.0.0.1:8000/api/payment/initiate", {
         email: shippingAddress.email,
         amount: Math.round(orderCalculations.finalTotal * 100),
@@ -205,6 +243,7 @@ export const Checkout: React.FC = () => {
       });
 
       if (paymentResponse.data.data.authorization_url) {
+        addDebugInfo('Payment initiated successfully, redirecting...');
         if (!isAuthenticated) {
           localStorage.setItem('pendingOrderId', orderId);
         }
@@ -217,15 +256,17 @@ export const Checkout: React.FC = () => {
         
         window.location.href = paymentResponse.data.data.authorization_url;
       } else {
+        addDebugInfo('Payment initialization failed - no authorization URL');
         toast.error('Failed to initialize payment');
       }
     } catch (error: any) {
+      addDebugInfo(`Payment failed: ${error.message}`);
       console.error("Payment initiation failed:", error);
       toast.error(error.response?.data?.message || 'Failed to initialize payment');
     } finally {
       setIsProcessing(false);
     }
-  }, [validateForm, items, shippingAddress, billingAddress, sameBillingAddress, orderCalculations.finalTotal, isAuthenticated, user?.id, dispatch]);
+  }, [validateForm, items, shippingAddress, billingAddress, sameBillingAddress, orderCalculations.finalTotal, isAuthenticated, user?.id, dispatch, addDebugInfo]);
 
   const handleInputChange = useCallback((
     target: 'shipping' | 'billing' | 'temp',
@@ -255,13 +296,39 @@ export const Checkout: React.FC = () => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-purple-600 border-t-transparent mx-auto mb-4"></div>
           <p className="text-gray-600">Loading checkout...</p>
+          <div className="mt-4 text-left bg-white p-4 rounded-lg shadow max-w-md">
+            <h4 className="font-semibold text-sm mb-2">Debug Info:</h4>
+            <div className="text-xs space-y-1">
+              {debugInfo.map((info, index) => (
+                <div key={index} className="text-gray-600">{info}</div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   if (error) {
-    return <div className="container mx-auto py-8 text-red-600">{error}</div>;
+    return (
+      <div className="container mx-auto py-8">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+          <div className="flex items-center">
+            <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
+            <span className="text-red-800 font-medium">Error loading cart</span>
+          </div>
+          <p className="text-red-600 mt-2">{error}</p>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h4 className="font-semibold mb-2">Debug Information:</h4>
+          <div className="text-sm space-y-1">
+            {debugInfo.map((info, index) => (
+              <div key={index} className="text-gray-600">{info}</div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (items.length === 0) {
@@ -274,6 +341,14 @@ export const Checkout: React.FC = () => {
         >
           Shop Now
         </button>
+        <div className="mt-4 bg-white p-4 rounded-lg shadow max-w-md mx-auto">
+          <h4 className="font-semibold mb-2">Debug Information:</h4>
+          <div className="text-sm space-y-1">
+            {debugInfo.map((info, index) => (
+              <div key={index} className="text-gray-600">{info}</div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -281,6 +356,21 @@ export const Checkout: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-100 py-6">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Debug Panel */}
+        <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+          <h4 className="font-semibold text-sm mb-2 text-yellow-800">Debug Info:</h4>
+          <div className="text-xs space-y-1 max-h-32 overflow-y-auto">
+            {debugInfo.map((info, index) => (
+              <div key={index} className="text-yellow-700">{info}</div>
+            ))}
+          </div>
+          <div className="mt-2 text-xs text-yellow-700">
+            <strong>Cart Total:</strong> Ksh {total.toFixed(2)} | 
+            <strong> Items:</strong> {items.length} | 
+            <strong> Final Total:</strong> Ksh {orderCalculations.finalTotal.toFixed(2)}
+          </div>
+        </div>
+
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Checkout</h1>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
@@ -288,7 +378,7 @@ export const Checkout: React.FC = () => {
             {/* Cart Review */}
             <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <Package className="h-5 w-5 mr-2" /> Cart Review
+                <Package className="h-5 w-5 mr-2" /> Cart Review ({items.length} items)
               </h2>
               <div className="space-y-3">
                 {items.map((item) => (
@@ -300,7 +390,7 @@ export const Checkout: React.FC = () => {
                     />
                     <div className="flex-1 min-w-0">
                       <h3 className="text-sm text-gray-900 font-medium truncate">{item.product.name}</h3>
-                      <p className="text-xs text-gray-500">Ksh {item.product.price.toFixed(2)}</p>
+                      <p className="text-xs text-gray-500">Ksh {item.product.price.toFixed(2)} each</p>
                     </div>
                     <div className="flex items-center space-x-2">
                       <button
@@ -318,6 +408,11 @@ export const Checkout: React.FC = () => {
                       >
                         <Plus className="h-3 w-3" />
                       </button>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-gray-900">
+                        Ksh {(item.product.price * item.quantity).toFixed(2)}
+                      </p>
                     </div>
                     <button
                       onClick={() => handleRemoveItem(item.id)}
@@ -541,7 +636,7 @@ export const Checkout: React.FC = () => {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-sm font-medium text-green-800">Secure Payment with Paystack</h3>
+                    <h3 className="text-sm font-medium text-green-800">Peoceed To Payment</h3>
                     <p className="text-xs text-green-600 mt-1">
                       Your payment will be processed securely through Paystack. You'll be redirected to complete your payment.
                     </p>
@@ -563,7 +658,7 @@ export const Checkout: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <span>Pay with Paystack</span>
+                  <span>Pay</span>
                   <span className="font-bold">Ksh {orderCalculations.finalTotal.toFixed(2)}</span>
                 </>
               )}
