@@ -169,56 +169,92 @@ export const addressAPI = {
   deleteAddress: (id: string) => api.delete(`/addresses/${id}`),
 };
 
+
+// Checkout API
+export const checkoutAPI = {
+  getCheckoutData: async () => {
+    try {
+      await api.get('/sanctum/csrf-cookie');
+      return await api.get('/checkout');
+    } catch (error) {
+      console.warn('Failed to fetch checkout data:', error);
+      throw error;
+    }
+  },
+};
+
+
 // Order API
 export const orderAPI = {
   createOrder: async (data: {
-    items: any[];
-    shippingAddress: any;
-    billingAddress: any;
-    paymentInfo: any;
+    shippingAddress: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      phone: string;
+      address: string;
+      apartment?: string;
+      city: string;
+      state: string;
+      zipCode?: string;
+    };
+    billingAddress: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      phone: string;
+      address: string;
+      apartment?: string;
+      city: string;
+      state: string;
+      zipCode?: string;
+    };
     total: number;
     sessionId?: string;
   }) => {
     try {
       await api.get('/sanctum/csrf-cookie');
-    } catch (error: any) {
-      console.warn('Failed to fetch CSRF token:', error.message);
+      return await api.post('/orders', {
+        shipping_address: {
+          first_name: data.shippingAddress.firstName,
+          last_name: data.shippingAddress.lastName,
+          email: data.shippingAddress.email,
+          phone: data.shippingAddress.phone,
+          line1: data.shippingAddress.address,
+          line2: data.shippingAddress.apartment || '',
+          city: data.shippingAddress.city,
+          state: data.shippingAddress.state,
+          zip_code: data.shippingAddress.zipCode || '',
+        },
+        billing_address: {
+          first_name: data.billingAddress.firstName,
+          last_name: data.billingAddress.lastName,
+          email: data.billingAddress.email,
+          phone: data.billingAddress.phone,
+          line1: data.billingAddress.address,
+          line2: data.billingAddress.apartment || '',
+          city: data.billingAddress.city,
+          state: data.billingAddress.state,
+          zip_code: data.billingAddress.zipCode || '',
+        },
+        total: data.total,
+        sessionId: data.sessionId,
+      });
+    } catch (error) {
+      console.error('Order creation failed:', error);
+      throw error;
     }
-    const shippingResponse = await addressAPI.createAddress({
-      ...data.shippingAddress,
-      type: 'shipping',
-      sessionId: data.sessionId,
-      city: 'Nairobi',
-      state: 'Nairobi',
-    });
-    const billingResponse = data.billingAddress === data.shippingAddress
-      ? shippingResponse
-      : await addressAPI.createAddress({
-          ...data.billingAddress,
-          type: 'billing',
-          sessionId: data.sessionId,
-          city: 'Nairobi',
-          state: 'Nairobi',
-        });
-
-    return api.post('/orders', {
-      items: data.items,
-      shipping_address_id: shippingResponse.data.id,
-      billing_address_id: billingResponse.data.id,
-      paymentInfo: data.paymentInfo,
-      total: data.total,
-      sessionId: data.sessionId,
-    });
   },
   getOrders: (params?: any) => api.get('/orders', { params }),
   getOrder: (id: string) => api.get(`/orders/${id}`),
   updateOrderStatus: async (id: string, status: string) => {
     try {
       await api.get('/sanctum/csrf-cookie');
-    } catch (error: any) {
-      console.warn('Failed to fetch CSRF token:', error.message);
+      return await api.patch(`/orders/${id}/status`, { status });
+    } catch (error) {
+      console.warn('Failed to update order status:', error);
+      throw error;
     }
-    return api.patch(`/orders/${id}/status`, { status });
   },
 };
 

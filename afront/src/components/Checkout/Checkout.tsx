@@ -2,14 +2,14 @@ import React, { useState, useEffect, Fragment, useCallback, useMemo } from 'reac
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store/store';
-import { clearCart, fetchCart, removeFromCart, updateCartItem } from '../../store/cartSlice';
-import { orderAPI } from '../../services/api';
+import { clearCart } from '../../store/cartSlice'; // Removed fetchCart, removeFromCart, updateCartItem
+import { checkoutAPI, orderAPI, cartAPI } from '../../services/api';
 import { Check, MapPin, Package, Shield, Truck, Trash2, Plus, Minus, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { Dialog, Transition } from '@headlessui/react';
 import validator from 'validator';
-import axios from 'axios';
+import { debounce } from 'lodash';
 
 interface Address {
   firstName: string;
@@ -21,6 +21,12 @@ interface Address {
   city: string;
   state: string;
   zipCode: string;
+}
+
+interface CartItem {
+  id: string;
+  product: { id: string; name: string; price: number; image: string };
+  quantity: number;
 }
 
 export const Checkout: React.FC = () => {
@@ -48,34 +54,35 @@ export const Checkout: React.FC = () => {
   const [billingAddress, setBillingAddress] = useState<Address>({ ...shippingAddress });
   const [sameBillingAddress, setSameBillingAddress] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
-  const { items, total, isLoading, error } = useSelector((state: RootState) => state.cart);
   const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
 
   // Debug function to log information
   const addDebugInfo = useCallback((info: string) => {
     console.log('DEBUG:', info);
-    setDebugInfo(prev => [...prev.slice(-9), `${new Date().toLocaleTimeString()}: ${info}`]);
+    setDebugInfo((prev) => [...prev.slice(-9), `${new Date().toLocaleTimeString()}: ${info}`]);
   }, []);
 
   // Memoized calculations for better performance
   const orderCalculations = useMemo(() => {
-    addDebugInfo(`Calculating totals - Cart total: ${total}, Items count: ${items.length}`);
+    addDebugInfo(`Calculating totals - Cart total: ${total}, Items count: ${cartItems.length}`);
     const tax = total * 0.08;
     const shipping = total > 1000 ? 0 : 50;
     const finalTotal = total + tax + shipping;
-    
     addDebugInfo(`Final calculations - Tax: ${tax}, Shipping: ${shipping}, Total: ${finalTotal}`);
     return { tax, shipping, finalTotal };
-  }, [total, items.length, addDebugInfo]);
+  }, [total, cartItems.length, addDebugInfo]);
 
-  // Initialize session and fetch cart only once
+  // Initialize session and fetch checkout data
   useEffect(() => {
     const initializeCheckout = async () => {
       addDebugInfo('Initializing checkout...');
-      
+
       // Initialize session ID for guest users
       if (!isAuthenticated && !localStorage.getItem('sessionId')) {
         const sessionId = uuidv4();
@@ -83,39 +90,68 @@ export const Checkout: React.FC = () => {
         addDebugInfo(`Created new session ID: ${sessionId}`);
       }
 
-      // Fetch cart only if not already loading and not initialized
-      if (!isLoading && !isInitialized) {
-        addDebugInfo('Fetching cart data...');
+      // Fetch checkout data
+      if (!isInitialized) {
+        addDebugInfo('Fetching checkout data...');
         try {
-          await dispatch(fetchCart());
-          addDebugInfo('Cart fetch completed successfully');
+          const response = await checkoutAPI.getCheckoutData();
+          const { cart_items, total, addresses } = response.data;
+          setCartItems(cart_items);
+          setTotal(total);
+          if (addresses.length > 0) {
+            const defaultAddress = addresses.find((addr: any) => addr.type === 'shipping') || addresses[0];
+            setShippingAddress({
+              firstName: defaultAddress.first_name || '',
+              lastName: defaultAddress.last_name || '',
+              email: defaultAddress.email || user?.email || '',
+              phone: defaultAddress.phone || user?.phone || '',
+              address: defaultAddress.line1 || '',
+              apartment: defaultAddress.line2 || '',
+              city: defaultAddress.city || 'Nairobi',
+              state: defaultAddress.state || 'Nairobi',
+              zipCode: defaultAddress.zip_code || '',
+            });
+            if (sameBillingAddress) {
+              setBillingAddress({
+                firstName: defaultAddress.first_name || '',
+                lastName: defaultAddress.last_name || '',
+                email: defaultAddress.email || user?.email || '',
+                phone: defaultAddress.phone || user?.phone || '',
+                address: defaultAddress.line1 || '',
+                apartment: defaultAddress.line2 || '',
+                city: defaultAddress.city || 'Nairobi',
+                state: defaultAddress.state || 'Nairobi',
+                zipCode: defaultAddress.zip_code || '',
+              });
+            }
+          }
+          addDebugInfo('Checkout data fetched successfully');
           setIsInitialized(true);
-        } catch (error) {
-          addDebugInfo(`Cart fetch failed: ${error}`);
+        } catch (err: any) {
+          addDebugInfo(`Checkout data fetch failed: ${err.message}`);
+          setError(err.response?.data?.message || 'Failed to load checkout data');
         }
       }
     };
 
     initializeCheckout();
-  }, [isAuthenticated, dispatch, isLoading, isInitialized, addDebugInfo]);
+  }, [isAuthenticated, user, sameBillingAddress, isInitialized, addDebugInfo]);
 
-  // Separate effect for user data population
+  // Update address fields for authenticated users
   useEffect(() => {
-    if (user && isInitialized) {
+    if (user && isInitialized && !shippingAddress.firstName) {
       addDebugInfo(`Populating user data: ${user.name}, ${user.email}`);
       const firstName = user.name?.split(' ')[0] || '';
       const lastName = user.name?.split(' ').slice(1).join(' ') || '';
-      
-      setShippingAddress(prev => ({
+      setShippingAddress((prev) => ({
         ...prev,
         firstName,
         lastName,
         email: user.email,
         phone: user.phone || '',
       }));
-      
       if (sameBillingAddress) {
-        setBillingAddress(prev => ({
+        setBillingAddress((prev) => ({
           ...prev,
           firstName,
           lastName,
@@ -124,21 +160,18 @@ export const Checkout: React.FC = () => {
         }));
       }
     }
-  }, [user, sameBillingAddress, isInitialized, addDebugInfo]);
+  }, [user, isInitialized, sameBillingAddress, addDebugInfo]);
 
-  // Separate effect for cart validation and redirect
+  // Redirect if cart is empty
   useEffect(() => {
-    if (isInitialized && !isLoading) {
-      addDebugInfo(`Cart check - Items: ${items.length}, Loading: ${isLoading}`);
-      if (items.length === 0) {
-        addDebugInfo('Cart is empty, redirecting...');
-        navigate('/cart');
-      }
+    if (isInitialized && cartItems.length === 0) {
+      addDebugInfo('Cart is empty, redirecting...');
+      navigate('/cart');
     }
-  }, [isInitialized, isLoading, items.length, navigate, addDebugInfo]);
+  }, [isInitialized, cartItems.length, navigate, addDebugInfo]);
 
   const handleAddNewAddress = useCallback(() => {
-    console.log('Add New Address clicked');
+    addDebugInfo('Add New Address clicked');
     setIsModalOpen(true);
     setTempAddress({
       address: '',
@@ -147,10 +180,14 @@ export const Checkout: React.FC = () => {
       state: 'Nairobi',
       zipCode: '',
     });
-  }, []);
+  }, [addDebugInfo]);
 
   const handleModalSubmit = useCallback(() => {
     const updatedAddress = {
+      firstName: shippingAddress.firstName,
+      lastName: shippingAddress.lastName,
+      email: shippingAddress.email,
+      phone: shippingAddress.phone,
       address: tempAddress.address || '',
       apartment: tempAddress.apartment || '',
       city: 'Nairobi',
@@ -158,52 +195,61 @@ export const Checkout: React.FC = () => {
       zipCode: tempAddress.zipCode || '',
     };
 
-    setShippingAddress(prev => ({ ...prev, ...updatedAddress }));
-    
+    setShippingAddress(updatedAddress);
     if (sameBillingAddress) {
-      setBillingAddress(prev => ({ ...prev, ...updatedAddress }));
+      setBillingAddress(updatedAddress);
     }
-    
     setIsModalOpen(false);
     addDebugInfo('Address updated successfully');
-  }, [tempAddress, sameBillingAddress, addDebugInfo]);
+  }, [tempAddress, sameBillingAddress, shippingAddress, addDebugInfo]);
 
   const validateForm = useCallback((): boolean => {
-    const shippingRequired = ['firstName', 'lastName', 'email', 'phone', 'address'];
+    const requiredFields = ['firstName', 'lastName', 'email', 'phone', 'address'];
     const isShippingValid =
-      shippingRequired.every(field => shippingAddress[field as keyof Address]?.trim() !== '') &&
+      requiredFields.every((field) => shippingAddress[field as keyof Address]?.trim() !== '') &&
       validator.isEmail(shippingAddress.email) &&
       validator.isMobilePhone(shippingAddress.phone, 'any');
-    
-    const isValid = items.length > 0 && isShippingValid;
-    addDebugInfo(`Form validation - Valid: ${isValid}, Items: ${items.length}, Shipping valid: ${isShippingValid}`);
+    const isValid = cartItems.length > 0 && isShippingValid;
+    addDebugInfo(`Form validation - Valid: ${isValid}, Items: ${cartItems.length}, Shipping valid: ${isShippingValid}`);
     return isValid;
-  }, [shippingAddress, items.length, addDebugInfo]);
+  }, [shippingAddress, cartItems.length, addDebugInfo]);
 
-  const handleRemoveItem = useCallback(async (id: string) => {
-    addDebugInfo(`Removing item: ${id}`);
-    try {
-      await dispatch(removeFromCart(id)).unwrap();
-      toast.success('Item removed from cart');
-      addDebugInfo('Item removed successfully');
-    } catch (err) {
-      addDebugInfo(`Failed to remove item: ${err}`);
-      toast.error('Failed to remove item');
-    }
-  }, [dispatch, addDebugInfo]);
+  const handleRemoveItem = useCallback(
+    debounce(async (id: string) => {
+      addDebugInfo(`Removing item: ${id}`);
+      try {
+        await cartAPI.removeFromCart(id);
+        const response = await checkoutAPI.getCheckoutData();
+        setCartItems(response.data.cart_items);
+        setTotal(response.data.total);
+        toast.success('Item removed from cart');
+        addDebugInfo('Item removed successfully');
+      } catch (err: any) {
+        addDebugInfo(`Failed to remove item: ${err.message}`);
+        toast.error('Failed to remove item');
+      }
+    }, 500),
+    [addDebugInfo]
+  );
 
-  const handleUpdateQuantity = useCallback(async (id: string, quantity: number) => {
-    if (quantity < 1) return;
-    addDebugInfo(`Updating quantity for ${id} to ${quantity}`);
-    try {
-      await dispatch(updateCartItem({ id, quantity })).unwrap();
-      toast.success('Cart updated');
-      addDebugInfo('Quantity updated successfully');
-    } catch (err) {
-      addDebugInfo(`Failed to update quantity: ${err}`);
-      toast.error('Failed to update cart');
-    }
-  }, [dispatch, addDebugInfo]);
+  const handleUpdateQuantity = useCallback(
+    debounce(async (id: string, quantity: number) => {
+      if (quantity < 1) return;
+      addDebugInfo(`Updating quantity for ${id} to ${quantity}`);
+      try {
+        await cartAPI.updateCartItem(id, { quantity });
+        const response = await checkoutAPI.getCheckoutData();
+        setCartItems(response.data.cart_items);
+        setTotal(response.data.total);
+        toast.success('Cart updated');
+        addDebugInfo('Quantity updated successfully');
+      } catch (err: any) {
+        addDebugInfo(`Failed to update quantity: ${err.message}`);
+        toast.error('Failed to update cart');
+      }
+    }, 500),
+    [addDebugInfo]
+  );
 
   const handlePaystackPayment = useCallback(async () => {
     if (!validateForm()) {
@@ -215,82 +261,72 @@ export const Checkout: React.FC = () => {
     setIsProcessing(true);
     try {
       const orderData = {
-        items,
         shippingAddress,
         billingAddress: sameBillingAddress ? shippingAddress : billingAddress,
-        paymentInfo: null,
         total: orderCalculations.finalTotal,
         sessionId: isAuthenticated ? undefined : localStorage.getItem('sessionId') || undefined,
-        paymentStatus: 'pending'
       };
 
       addDebugInfo('Creating order...');
-      const orderResponse = await orderAPI.createOrder(orderData);
-      const orderId = orderResponse.data.id;
+      const response = await orderAPI.createOrder(orderData);
+      const orderId = response.data.order.id;
       addDebugInfo(`Order created with ID: ${orderId}`);
 
-      addDebugInfo('Initiating Paystack payment...');
-      const paymentResponse = await axios.post("http://127.0.0.1:8000/api/payment/initiate", {
-        email: shippingAddress.email,
-        amount: Math.round(orderCalculations.finalTotal * 100),
-        orderId,
-        metadata: {
-          orderId,
-          customerId: isAuthenticated ? user?.id : localStorage.getItem('sessionId'),
-          customerName: `${shippingAddress.firstName} ${shippingAddress.lastName}`,
-          phone: shippingAddress.phone
-        }
-      });
-
-      if (paymentResponse.data.data.authorization_url) {
+      if (response.data.authorization_url) {
         addDebugInfo('Payment initiated successfully, redirecting...');
         if (!isAuthenticated) {
           localStorage.setItem('pendingOrderId', orderId);
         }
-        
         dispatch(clearCart());
         if (!isAuthenticated) {
           localStorage.removeItem('sessionId');
           localStorage.removeItem('guest_cart');
         }
-        
-        window.location.href = paymentResponse.data.data.authorization_url;
+        window.location.href = response.data.authorization_url;
       } else {
         addDebugInfo('Payment initialization failed - no authorization URL');
         toast.error('Failed to initialize payment');
       }
     } catch (error: any) {
       addDebugInfo(`Payment failed: ${error.message}`);
-      console.error("Payment initiation failed:", error);
+      console.error('Order creation failed:', error);
       toast.error(error.response?.data?.message || 'Failed to initialize payment');
     } finally {
       setIsProcessing(false);
     }
-  }, [validateForm, items, shippingAddress, billingAddress, sameBillingAddress, orderCalculations.finalTotal, isAuthenticated, user?.id, dispatch, addDebugInfo]);
+  }, [
+    validateForm,
+    shippingAddress,
+    billingAddress,
+    sameBillingAddress,
+    orderCalculations.finalTotal,
+    isAuthenticated,
+    dispatch,
+    addDebugInfo,
+  ]);
 
-  const handleInputChange = useCallback((
-    target: 'shipping' | 'billing' | 'temp',
-    field: string,
-    value: string
-  ) => {
-    switch (target) {
-      case 'shipping':
-        setShippingAddress(prev => ({ ...prev, [field]: value }));
-        if (sameBillingAddress) {
-          setBillingAddress(prev => ({ ...prev, [field]: value }));
-        }
-        break;
-      case 'billing':
-        setBillingAddress(prev => ({ ...prev, [field]: value }));
-        break;
-      case 'temp':
-        setTempAddress(prev => ({ ...prev, [field]: value }));
-        break;
-    }
-  }, [sameBillingAddress]);
+  const handleInputChange = useCallback(
+    (target: 'shipping' | 'billing' | 'temp', field: string, value: string) => {
+      switch (target) {
+        case 'shipping':
+          setShippingAddress((prev) => ({ ...prev, [field]: value }));
+          if (sameBillingAddress) {
+            setBillingAddress((prev) => ({ ...prev, [field]: value }));
+          }
+          break;
+        case 'billing':
+          setBillingAddress((prev) => ({ ...prev, [field]: value }));
+          break;
+        case 'temp':
+          setTempAddress((prev) => ({ ...prev, [field]: value }));
+          break;
+      }
+    },
+    [sameBillingAddress]
+  );
 
   // Show loading state
-  if (isLoading || !isInitialized) {
+  if (!isInitialized) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-center">
@@ -315,7 +351,7 @@ export const Checkout: React.FC = () => {
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
           <div className="flex items-center">
             <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
-            <span className="text-red-800 font-medium">Error loading cart</span>
+            <span className="text-red-800 font-medium">Error loading checkout</span>
           </div>
           <p className="text-red-600 mt-2">{error}</p>
         </div>
@@ -331,7 +367,7 @@ export const Checkout: React.FC = () => {
     );
   }
 
-  if (items.length === 0) {
+  if (cartItems.length === 0) {
     return (
       <div className="container mx-auto py-8 text-center text-gray-900">
         <h2 className="text-2xl font-bold mb-4">Your Cart is Empty</h2>
@@ -366,7 +402,7 @@ export const Checkout: React.FC = () => {
           </div>
           <div className="mt-2 text-xs text-yellow-700">
             <strong>Cart Total:</strong> Ksh {total.toFixed(2)} | 
-            <strong> Items:</strong> {items.length} | 
+            <strong> Items:</strong> {cartItems.length} | 
             <strong> Final Total:</strong> Ksh {orderCalculations.finalTotal.toFixed(2)}
           </div>
         </div>
@@ -378,15 +414,16 @@ export const Checkout: React.FC = () => {
             {/* Cart Review */}
             <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <Package className="h-5 w-5 mr-2" /> Cart Review ({items.length} items)
+                <Package className="h-5 w-5 mr-2" /> Cart Review ({cartItems.length} items)
               </h2>
               <div className="space-y-3">
-                {items.map((item) => (
+                {cartItems.map((item) => (
                   <div key={item.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                     <img
                       src={item.product.image || 'https://via.placeholder.com/150'}
                       alt={item.product.name}
                       className="w-12 h-12 object-cover rounded-lg"
+                      loading="lazy"
                     />
                     <div className="flex-1 min-w-0">
                       <h3 className="text-sm text-gray-900 font-medium truncate">{item.product.name}</h3>
@@ -636,7 +673,7 @@ export const Checkout: React.FC = () => {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-sm font-medium text-green-800">Peoceed To Payment</h3>
+                    <h3 className="text-sm font-medium text-green-800">Proceed To Payment</h3>
                     <p className="text-xs text-green-600 mt-1">
                       Your payment will be processed securely through Paystack. You'll be redirected to complete your payment.
                     </p>
@@ -665,18 +702,19 @@ export const Checkout: React.FC = () => {
             </button>
           </div>
 
-          {/* Order Summary Sidebar - THIS IS THE RIGHT SIDE SUMMARY */}
+          {/* Order Summary Sidebar */}
           <div className="lg:col-span-1">
             <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm sticky top-24">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h3>
               <div className="space-y-2 mb-4">
-                {items.map((item) => (
+                {cartItems.map((item) => (
                   <div key={item.id} className="flex items-center space-x-3">
                     <div className="relative">
                       <img
                         src={item.product.image || 'https://via.placeholder.com/150'}
                         alt={item.product.name}
                         className="w-10 h-10 object-cover rounded-lg"
+                        loading="lazy"
                       />
                       <span className="absolute -top-2 -right-2 bg-purple-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
                         {item.quantity}

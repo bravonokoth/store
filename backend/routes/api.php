@@ -47,6 +47,7 @@ Route::prefix('products')->group(function () {
     Route::get('/{product}', [ProductController::class, 'show']);
     Route::get('/categories', [ProductController::class, 'categories']);
 });
+Route::get('/checkout', [CheckoutController::class, 'index']);
 
 Route::post('/payment/initiate', [PaymentController::class, 'initialize']);
 Route::get('/payment/callback', [PaymentController::class, 'callback']);
