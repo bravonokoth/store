@@ -27,8 +27,18 @@ Route::get('/sanctum/csrf-cookie', [CsrfCookieController::class, 'show'])->name(
 
 // Catch-all OPTIONS for CORS
 Route::options('{any}', function () {
+    $origin = request()->header('Origin');
+    $allowedOrigins = [
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'https://store-one-olive.vercel.app'
+    ];
+    
+    $allowOrigin = in_array($origin, $allowedOrigins) ? $origin : 'https://store-one-olive.vercel.app';
+    // 'http://localhost:5173';
+    
     return response()->json([], 204)
-        ->header('Access-Control-Allow-Origin', 'https://store-one-olive.vercel.app')
+        ->header('Access-Control-Allow-Origin', $allowOrigin)
         ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
         ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-XSRF-TOKEN, ngrok-skip-browser-warning')
         ->header('Access-Control-Allow-Credentials', 'true');
