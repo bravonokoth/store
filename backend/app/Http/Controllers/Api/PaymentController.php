@@ -13,7 +13,7 @@ class PaymentController extends Controller
         $response = Http::withToken(env('PAYSTACK_SECRET_KEY'))
             ->post('https://api.paystack.co/transaction/initialize', [
                 'email' => $request->email,
-                'amount' => $request->amount * 100, // Paystack expects amount in kobo (NGN) or cents
+                'amount' => $request->amount * 100, // Paystack expects amount in Ksh
                 'callback_url' => url('/api/payment/callback')
             ]);
 
