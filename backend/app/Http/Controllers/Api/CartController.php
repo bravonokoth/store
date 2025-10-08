@@ -138,9 +138,6 @@ class CartController extends Controller
             ]);
 
             $cartItem = CartItem::findOrFail($id);
-            // Removed authorization for guest compatibility; add back if needed
-            // $this->authorize('update', $cartItem);
-
             if ($cartItem->product->stock < $validated['quantity']) {
                 return response()->json(['message' => "Insufficient stock for product: {$cartItem->product->name}"], 400);
             }
@@ -165,9 +162,6 @@ class CartController extends Controller
     {
         try {
             $cartItem = CartItem::findOrFail($id);
-            // Removed authorization for guest compatibility; add back if needed
-            // $this->authorize('delete', $cartItem);
-
             $cartItem->delete();
 
             return response()->json(['message' => 'Cart item removed'], 200);
