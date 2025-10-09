@@ -12,7 +12,7 @@ interface CartItem {
     stock: number;
   };
   quantity: number;
-  session_id?: string; // Added for guest cart
+  session_id?: string; // For guest cart
 }
 
 interface CartState {
@@ -24,7 +24,7 @@ interface CartState {
 }
 
 const initialState: CartState = {
-  items: JSON.parse(localStorage.getItem('guest_cart') || '[]'), // Initialize with guest cart
+  items: [], // Initialize empty; fetchCart will populate for both guest and authenticated users
   total: 0,
   itemCount: 0,
   isLoading: false,
@@ -32,34 +32,38 @@ const initialState: CartState = {
 };
 
 // Async thunks
-export const fetchCart = createAsyncThunk('cart/fetchCart', async (_, { getState }) => {
-  const { auth } = getState() as { auth: { isAuthenticated: boolean } };
-  if (auth.isAuthenticated) {
-    const response = await cartAPI.getCart();
-    return response.data.cart_items;
+export const fetchCart = createAsyncThunk(
+  'cart/fetchCart',
+  async ({ sessionId }: { sessionId?: string }, { getState, rejectWithValue }) => {
+    const { auth } = getState() as { auth: { isAuthenticated: boolean } };
+    try {
+      if (auth.isAuthenticated) {
+        const response = await cartAPI.getCart();
+        return response.data.cart_items || [];
+      } else {
+        const response = await cartAPI.getCart(sessionId);
+        return response.data.cart_items || [];
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch cart');
+    }
   }
-  return JSON.parse(localStorage.getItem('guest_cart') || '[]');
-});
+);
 
 export const addToCart = createAsyncThunk(
   'cart/addToCart',
-  async ({ product_id, quantity }: { product_id: string; quantity: number }, { getState, rejectWithValue }) => {
+  async (
+    { product_id, quantity, sessionId }: { product_id: string; quantity: number; sessionId?: string },
+    { getState, rejectWithValue }
+  ) => {
     const { auth } = getState() as { auth: { isAuthenticated: boolean } };
     try {
       if (auth.isAuthenticated) {
         const response = await cartAPI.addToCart({ product_id, quantity });
         return response.data.cart_item;
       } else {
-        const guestCart = JSON.parse(localStorage.getItem('guest_cart') || '[]');
-        const existingItem = guestCart.find((item: CartItem) => item.product_id === product_id);
-        if (existingItem) {
-          existingItem.quantity += quantity;
-        } else {
-          // Mock product data (fetch from API if needed)
-          guestCart.push({ id: Date.now().toString(), product_id, quantity, product: { id: product_id, name: 'Product', price: 0, image: '', stock: 0 } });
-        }
-        localStorage.setItem('guest_cart', JSON.stringify(guestCart));
-        return guestCart[guestCart.length - 1];
+        const response = await cartAPI.addToCart({ product_id, quantity }, sessionId);
+        return response.data.cart_item;
       }
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to add to cart');
@@ -69,21 +73,18 @@ export const addToCart = createAsyncThunk(
 
 export const updateCartItem = createAsyncThunk(
   'cart/updateCartItem',
-  async ({ id, quantity }: { id: string; quantity: number }, { getState, rejectWithValue }) => {
+  async (
+    { id, quantity, sessionId }: { id: string; quantity: number; sessionId?: string },
+    { getState, rejectWithValue }
+  ) => {
     const { auth } = getState() as { auth: { isAuthenticated: boolean } };
     try {
       if (auth.isAuthenticated) {
         const response = await cartAPI.updateCartItem(id, { quantity });
         return response.data;
       } else {
-        const guestCart = JSON.parse(localStorage.getItem('guest_cart') || '[]');
-        const item = guestCart.find((item: CartItem) => item.id === id);
-        if (item) {
-          item.quantity = quantity;
-          localStorage.setItem('guest_cart', JSON.stringify(guestCart));
-          return item;
-        }
-        throw new Error('Item not found');
+        const response = await cartAPI.updateCartItem(id, { quantity }, sessionId);
+        return response.data;
       }
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update cart item');
@@ -93,16 +94,14 @@ export const updateCartItem = createAsyncThunk(
 
 export const removeFromCart = createAsyncThunk(
   'cart/removeFromCart',
-  async (id: string, { getState, rejectWithValue }) => {
+  async ({ id, sessionId }: { id: string; sessionId?: string }, { getState, rejectWithValue }) => {
     const { auth } = getState() as { auth: { isAuthenticated: boolean } };
     try {
       if (auth.isAuthenticated) {
         await cartAPI.removeFromCart(id);
         return id;
       } else {
-        const guestCart = JSON.parse(localStorage.getItem('guest_cart') || '[]');
-        const updatedCart = guestCart.filter((item: CartItem) => item.id !== id);
-        localStorage.setItem('guest_cart', JSON.stringify(updatedCart));
+        await cartAPI.removeFromCart(id, sessionId);
         return id;
       }
     } catch (error: any) {
@@ -113,16 +112,20 @@ export const removeFromCart = createAsyncThunk(
 
 export const clearCart = createAsyncThunk(
   'cart/clearCart',
-  async (_, { getState }) => {
+  async ({ sessionId }: { sessionId?: string }, { getState, rejectWithValue }) => {
     const { auth } = getState() as { auth: { isAuthenticated: boolean } };
-    if (auth.isAuthenticated) {
-      await cartAPI.clearCart(); // ✅ no argument
-    } else {
-      localStorage.setItem('guest_cart', '[]');
+    try {
+      if (auth.isAuthenticated) {
+        await cartAPI.clearCart();
+      } else {
+        await cartAPI.clearCart(sessionId);
+      }
+      return true;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to clear cart');
     }
   }
 );
-
 
 const cartSlice = createSlice({
   name: 'cart',
@@ -132,7 +135,7 @@ const cartSlice = createSlice({
       state.error = null;
     },
     calculateTotals: (state) => {
-      state.total = state.items.reduce((total, item) => total + (item.product.price * item.quantity), 0);
+      state.total = state.items.reduce((total, item) => total + item.product.price * item.quantity, 0);
       state.itemCount = state.items.reduce((count, item) => count + item.quantity, 0);
     },
   },
@@ -141,6 +144,7 @@ const cartSlice = createSlice({
       // Fetch cart
       .addCase(fetchCart.pending, (state) => {
         state.isLoading = true;
+        state.error = null;
       })
       .addCase(fetchCart.fulfilled, (state, action: PayloadAction<CartItem[]>) => {
         state.isLoading = false;
@@ -149,11 +153,11 @@ const cartSlice = createSlice({
       })
       .addCase(fetchCart.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.error.message || 'Failed to fetch cart';
+        state.error = action.payload as string;
       })
       // Add to cart
       .addCase(addToCart.fulfilled, (state, action: PayloadAction<CartItem>) => {
-        const existingItem = state.items.find(item => item.product_id === action.payload.product_id);
+        const existingItem = state.items.find((item) => item.product_id === action.payload.product_id);
         if (existingItem) {
           existingItem.quantity += action.payload.quantity;
         } else {
@@ -167,7 +171,7 @@ const cartSlice = createSlice({
       })
       // Update cart item
       .addCase(updateCartItem.fulfilled, (state, action: PayloadAction<CartItem>) => {
-        const index = state.items.findIndex(item => item.id === action.payload.id);
+        const index = state.items.findIndex((item) => item.id === action.payload.id);
         if (index !== -1) {
           state.items[index] = action.payload;
         }
@@ -179,7 +183,7 @@ const cartSlice = createSlice({
       })
       // Remove from cart
       .addCase(removeFromCart.fulfilled, (state, action: PayloadAction<string>) => {
-        state.items = state.items.filter(item => item.id !== action.payload);
+        state.items = state.items.filter((item) => item.id !== action.payload);
         cartSlice.caseReducers.calculateTotals(state);
         state.error = null;
       })
@@ -191,6 +195,11 @@ const cartSlice = createSlice({
         state.items = [];
         state.total = 0;
         state.itemCount = 0;
+        state.error = null;
+      })
+      .addCase(clearCart.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
       });
   },
 });

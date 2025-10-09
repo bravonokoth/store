@@ -107,33 +107,39 @@ export const productAPI = {
 
 // Cart API
 export const cartAPI = {
-  getCart: () => api.get('/cart'),
+  getCart: (sessionId?: string) => {
+    const config = sessionId ? { params: { sessionId } } : {};
+    return api.get('/cart', config);
+  },
 
-  addToCart: async (data: any) => {
+  addToCart: async (data: any, sessionId?: string) => {
     try {
       await api.get('/sanctum/csrf-cookie');
     } catch (error: any) {
       console.warn('Failed to fetch CSRF token:', error.message);
     }
-    return api.post('/cart', data);
+    return api.post('/cart', { ...data, sessionId });
   },
 
-  updateCartItem: async (id: string, data: any) => {
+  updateCartItem: async (id: string, data: any, sessionId?: string) => {
     try {
       await api.get('/sanctum/csrf-cookie');
     } catch (error: any) {
       console.warn('Failed to fetch CSRF token:', error.message);
     }
-    return api.put(`/cart/${id}`, data);
+    return api.put(`/cart/${id}`, { ...data, sessionId });
   },
 
-  // Remove a single item
-  removeFromCart: (id: string) => api.delete(`/cart/${id}`),
+  removeFromCart: (id: string, sessionId?: string) => {
+    const config = sessionId ? { params: { sessionId } } : {};
+    return api.delete(`/cart/${id}`, config);
+  },
 
-  // Clear the whole cart (no id needed)
-  clearCart: () => api.delete('/cart'),
+  clearCart: (sessionId?: string) => {
+    const config = sessionId ? { params: { sessionId } } : {};
+    return api.delete('/cart', config);
+  },
 };
-
 
 // Address API
 export const addressAPI = {
@@ -141,13 +147,14 @@ export const addressAPI = {
     first_name: string;
     last_name: string;
     email: string;
-    phone: string;
-    address: string;
-    apartment?: string;
+    phone_number: string; // Changed from phone
+    line1: string;
+    line2?: string;
     city: string;
     state: string;
-    zip_code?: string;
-    type: 'shipping' | 'billing';
+    postal_code?: string; // Changed from zip_code
+    country?: string;
+    type?: 'shipping' | 'billing';
     sessionId?: string;
   }) => {
     try {
@@ -155,27 +162,33 @@ export const addressAPI = {
     } catch (error: any) {
       console.warn('Failed to fetch CSRF token:', error.message);
     }
-    return api.post('/addresses', { ...data, city: 'Nairobi', state: 'Nairobi' });
+    return api.post('/api/addresses', { ...data });
   },
-  getAddresses: () => api.get('/addresses'),
-  updateAddress: async (id: string, data: any) => {
+  getAddresses: (sessionId?: string) => {
+    const config = sessionId ? { params: { sessionId } } : {};
+    return api.get('/api/addresses', config);
+  },
+  updateAddress: async (id: string, data: any, sessionId?: string) => {
     try {
       await api.get('/sanctum/csrf-cookie');
     } catch (error: any) {
       console.warn('Failed to fetch CSRF token:', error.message);
     }
-    return api.put(`/addresses/${id}`, { ...data, city: 'Nairobi', state: 'Nairobi' });
+    return api.put(`/api/addresses/${id}`, { ...data, sessionId });
   },
-  deleteAddress: (id: string) => api.delete(`/addresses/${id}`),
+  deleteAddress: (id: string, sessionId?: string) => {
+    const config = sessionId ? { params: { sessionId } } : {};
+    return api.delete(`/api/addresses/${id}`, config);
+  },
 };
-
 
 // Checkout API
 export const checkoutAPI = {
-  getCheckoutData: async () => {
+  getCheckoutData: async (sessionId?: string) => {
     try {
       await api.get('/sanctum/csrf-cookie');
-      return await api.get('/checkout');
+      const config = sessionId ? { params: { sessionId } } : {};
+      return await api.get('/checkout', config);
     } catch (error) {
       console.warn('Failed to fetch checkout data:', error);
       throw error;
@@ -183,60 +196,41 @@ export const checkoutAPI = {
   },
 };
 
-
 // Order API
 export const orderAPI = {
   createOrder: async (data: {
     shippingAddress: {
-      firstName: string;
-      lastName: string;
+      first_name: string;
+      last_name: string;
       email: string;
-      phone: string;
-      address: string;
-      apartment?: string;
+      phone_number: string; // Changed from phone
+      line1: string;
+      line2?: string;
       city: string;
       state: string;
-      zipCode?: string;
+      postal_code?: string; // Changed from zip_code
+      country?: string;
     };
     billingAddress: {
-      firstName: string;
-      lastName: string;
+      first_name: string;
+      last_name: string;
       email: string;
-      phone: string;
-      address: string;
-      apartment?: string;
+      phone_number: string; // Changed from phone
+      line1: string;
+      line2?: string;
       city: string;
       state: string;
-      zipCode?: string;
+      postal_code?: string; // Changed from zip_code
+      country?: string;
     };
     total: number;
     sessionId?: string;
   }) => {
     try {
       await api.get('/sanctum/csrf-cookie');
-      return await api.post('/orders', {
-        shipping_address: {
-          first_name: data.shippingAddress.firstName,
-          last_name: data.shippingAddress.lastName,
-          email: data.shippingAddress.email,
-          phone: data.shippingAddress.phone,
-          line1: data.shippingAddress.address,
-          line2: data.shippingAddress.apartment || '',
-          city: data.shippingAddress.city,
-          state: data.shippingAddress.state,
-          zip_code: data.shippingAddress.zipCode || '',
-        },
-        billing_address: {
-          first_name: data.billingAddress.firstName,
-          last_name: data.billingAddress.lastName,
-          email: data.billingAddress.email,
-          phone: data.billingAddress.phone,
-          line1: data.billingAddress.address,
-          line2: data.billingAddress.apartment || '',
-          city: data.billingAddress.city,
-          state: data.billingAddress.state,
-          zip_code: data.billingAddress.zipCode || '',
-        },
+      return await api.post('/api/orders', {
+        shipping_address: data.shippingAddress,
+        billing_address: data.billingAddress,
         total: data.total,
         sessionId: data.sessionId,
       });
@@ -245,18 +239,26 @@ export const orderAPI = {
       throw error;
     }
   },
-  getOrders: (params?: any) => api.get('/orders', { params }),
-  getOrder: (id: string) => api.get(`/orders/${id}`),
-  updateOrderStatus: async (id: string, status: string) => {
+  getOrders: (params?: any, sessionId?: string) => {
+    const config = sessionId ? { params: { ...params, sessionId } } : { params };
+    return api.get('/api/orders', config);
+  },
+  getOrder: (id: string, sessionId?: string) => {
+    const config = sessionId ? { params: { sessionId } } : {};
+    return api.get(`/api/orders/${id}`, config);
+  },
+  updateOrderStatus: async (id: string, status: string, sessionId?: string) => {
     try {
       await api.get('/sanctum/csrf-cookie');
-      return await api.patch(`/orders/${id}/status`, { status });
+      const config = sessionId ? { params: { sessionId } } : {};
+      return await api.patch(`/api/orders/${id}/status`, { status }, config);
     } catch (error) {
       console.warn('Failed to update order status:', error);
       throw error;
     }
   },
 };
+
 
 // Admin API
 export const adminAPI = {
@@ -270,7 +272,7 @@ export const adminAPI = {
       console.warn('Failed to fetch CSRF token:', error.message);
     }
     return api.post('/admin/categories', data, {
-      headers: { 
+      headers: {
         'Content-Type': 'multipart/form-data',
         'ngrok-skip-browser-warning': '69420',
       },
@@ -283,7 +285,7 @@ export const adminAPI = {
       console.warn('Failed to fetch CSRF token:', error.message);
     }
     return api.post(`/admin/categories/${id}?_method=PUT`, data, {
-      headers: { 
+      headers: {
         'Content-Type': 'multipart/form-data',
         'ngrok-skip-browser-warning': '69420',
       },
@@ -298,7 +300,7 @@ export const adminAPI = {
       console.warn('Failed to fetch CSRF token:', error.message);
     }
     return api.post('/admin/products', data, {
-      headers: { 
+      headers: {
         'Content-Type': 'multipart/form-data',
         'ngrok-skip-browser-warning': '69420',
       },
@@ -311,7 +313,7 @@ export const adminAPI = {
       console.warn('Failed to fetch CSRF token:', error.message);
     }
     return api.post(`/admin/products/${id}?_method=PUT`, data, {
-      headers: { 
+      headers: {
         'Content-Type': 'multipart/form-data',
         'ngrok-skip-browser-warning': '69420',
       },
@@ -363,7 +365,7 @@ export const adminAPI = {
     const formData = new FormData();
     formData.append('file', file);
     return api.post('/admin/media', formData, {
-      headers: { 
+      headers: {
         'Content-Type': 'multipart/form-data',
         'ngrok-skip-browser-warning': '69420',
       },

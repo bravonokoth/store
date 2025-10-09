@@ -1,46 +1,29 @@
-import React, { useState, useEffect, Fragment, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, Fragment, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store/store';
-import { clearCart } from '../../store/cartSlice';
-import { checkoutAPI, orderAPI, cartAPI } from '../../services/api';
-import { Check, MapPin, Package, Shield, Truck, Trash2, Plus, Minus, AlertCircle } from 'lucide-react';
+import { fetchCart, clearCart, updateCartItem, removeFromCart } from '../../store/cartSlice';
+import { checkoutAPI, orderAPI, addressAPI } from '../../services/api';
+import { Check, MapPin, Package, Shield, Truck, Trash2, Plus, Minus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { Dialog, Transition } from '@headlessui/react';
 import validator from 'validator';
+import debounce from 'lodash.debounce';
 
-// Custom debounce function
-function debounce<T extends (...args: any[]) => void>(func: T, wait: number): (...args: Parameters<T>) => void {
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-
-  return function (...args: Parameters<T>) {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-    timeout = setTimeout(() => {
-      func(...args);
-      timeout = null;
-    }, wait);
-  };
-}
-
+// Update the Address interface to match the backend API and api.ts
 interface Address {
-  firstName: string;
-  lastName: string;
+  first_name: string;
+  last_name: string;
   email: string;
-  phone: string;
-  address: string;
-  apartment: string;
+  phone_number: string;
+  line1: string;
+  line2?: string; // Made optional to match api.ts
   city: string;
   state: string;
-  zipCode: string;
-}
-
-interface CartItem {
-  id: string;
-  product: { id: string; name: string; price: number; image: string };
-  quantity: number;
+  postal_code?: string; // Made optional to match api.ts
+  country?: string; // Made optional to match api.ts
+  type?: 'shipping' | 'billing';
 }
 
 export const Checkout: React.FC = () => {
@@ -48,41 +31,43 @@ export const Checkout: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
   const [tempAddress, setTempAddress] = useState<Partial<Address>>({
-    address: '',
-    apartment: '',
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone_number: '',
+    line1: '',
+    line2: '',
     city: 'Nairobi',
     state: 'Nairobi',
-    zipCode: '',
+    postal_code: '',
+    country: 'Kenya',
   });
   const [shippingAddress, setShippingAddress] = useState<Address>({
-    firstName: '',
-    lastName: '',
+    first_name: '',
+    last_name: '',
     email: '',
-    phone: '',
-    address: '',
-    apartment: '',
+    phone_number: '',
+    line1: '',
+    line2: '',
     city: 'Nairobi',
     state: 'Nairobi',
-    zipCode: '',
+    postal_code: '',
+    country: 'Kenya',
   });
   const [billingAddress, setBillingAddress] = useState<Address>({ ...shippingAddress });
   const [sameBillingAddress, setSameBillingAddress] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [total, setTotal] = useState(0);
-  const [error, setError] = useState<string | null>(null);
 
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { items: cartItems, total, isLoading, error } = useSelector((state: RootState) => state.cart);
 
-  // Debug function to log information
   const addDebugInfo = useCallback((info: string) => {
     console.log('DEBUG:', info);
     setDebugInfo((prev) => [...prev.slice(-9), `${new Date().toLocaleTimeString()}: ${info}`]);
   }, []);
 
-  // Memoized calculations for better performance
   const orderCalculations = useMemo(() => {
     addDebugInfo(`Calculating totals - Cart total: ${total}, Items count: ${cartItems.length}`);
     const tax = total * 0.08;
@@ -92,50 +77,73 @@ export const Checkout: React.FC = () => {
     return { tax, shipping, finalTotal };
   }, [total, cartItems.length, addDebugInfo]);
 
-  // Initialize session and fetch checkout data
+  const validateForm = useCallback(() => {
+    const isValidEmail = validator.isEmail(shippingAddress.email);
+    const isValidPhone = validator.isMobilePhone(shippingAddress.phone_number, 'any');
+    const isValid =
+      shippingAddress.first_name &&
+      shippingAddress.last_name &&
+      isValidEmail &&
+      isValidPhone &&
+      shippingAddress.line1 &&
+      shippingAddress.city &&
+      shippingAddress.state &&
+      (!sameBillingAddress
+        ? billingAddress.first_name &&
+          billingAddress.last_name &&
+          validator.isEmail(billingAddress.email) &&
+          validator.isMobilePhone(billingAddress.phone_number, 'any') &&
+          billingAddress.line1 &&
+          billingAddress.city &&
+          billingAddress.state
+        : true);
+    addDebugInfo(`Form validation: ${isValid}`);
+    return isValid;
+  }, [shippingAddress, billingAddress, sameBillingAddress, addDebugInfo]);
+
   useEffect(() => {
     const initializeCheckout = async () => {
-      addDebugInfo('Initializing checkout...');
-
-      // Initialize session ID for guest users
+      // Ensure sessionId is always a string for guest users
+      let sessionId: string = isAuthenticated ? '' : (localStorage.getItem('sessionId') || uuidv4());
       if (!isAuthenticated && !localStorage.getItem('sessionId')) {
-        const sessionId = uuidv4();
         localStorage.setItem('sessionId', sessionId);
         addDebugInfo(`Created new session ID: ${sessionId}`);
       }
 
-      // Fetch checkout data
       if (!isInitialized) {
         addDebugInfo('Fetching checkout data...');
         try {
-          const response = await checkoutAPI.getCheckoutData();
-          const { cart_items, total, addresses } = response.data;
-          setCartItems(cart_items);
-          setTotal(total);
+          // Pass sessionId only for guest users
+          await dispatch(fetchCart({ sessionId: isAuthenticated ? undefined : sessionId })).unwrap();
+          const response = await checkoutAPI.getCheckoutData(isAuthenticated ? undefined : sessionId);
+          addDebugInfo(`Checkout API response: ${JSON.stringify(response.data)}`);
+          const { addresses } = response.data;
           if (addresses.length > 0) {
             const defaultAddress = addresses.find((addr: any) => addr.type === 'shipping') || addresses[0];
             setShippingAddress({
-              firstName: defaultAddress.first_name || '',
-              lastName: defaultAddress.last_name || '',
+              first_name: defaultAddress.first_name || user?.name?.split(' ')[0] || '',
+              last_name: defaultAddress.last_name || user?.name?.split(' ')[1] || '',
               email: defaultAddress.email || user?.email || '',
-              phone: defaultAddress.phone || user?.phone || '',
-              address: defaultAddress.line1 || '',
-              apartment: defaultAddress.line2 || '',
+              phone_number: defaultAddress.phone_number || user?.phone || '',
+              line1: defaultAddress.line1 || '',
+              line2: defaultAddress.line2 || '',
               city: defaultAddress.city || 'Nairobi',
               state: defaultAddress.state || 'Nairobi',
-              zipCode: defaultAddress.zip_code || '',
+              postal_code: defaultAddress.postal_code || '',
+              country: defaultAddress.country || 'Kenya',
             });
             if (sameBillingAddress) {
               setBillingAddress({
-                firstName: defaultAddress.first_name || '',
-                lastName: defaultAddress.last_name || '',
+                first_name: defaultAddress.first_name || user?.name?.split(' ')[0] || '',
+                last_name: defaultAddress.last_name || user?.name?.split(' ')[1] || '',
                 email: defaultAddress.email || user?.email || '',
-                phone: defaultAddress.phone || user?.phone || '',
-                address: defaultAddress.line1 || '',
-                apartment: defaultAddress.line2 || '',
+                phone_number: defaultAddress.phone_number || user?.phone || '',
+                line1: defaultAddress.line1 || '',
+                line2: defaultAddress.line2 || '',
                 city: defaultAddress.city || 'Nairobi',
                 state: defaultAddress.state || 'Nairobi',
-                zipCode: defaultAddress.zip_code || '',
+                postal_code: defaultAddress.postal_code || '',
+                country: defaultAddress.country || 'Kenya',
               });
             }
           }
@@ -143,107 +151,41 @@ export const Checkout: React.FC = () => {
           setIsInitialized(true);
         } catch (err: any) {
           addDebugInfo(`Checkout data fetch failed: ${err.message}`);
-          setError(err.response?.data?.message || 'Failed to load checkout data');
+          if (err.message?.includes('Cart is empty')) {
+            toast.error('Your cart is empty. Please add items to proceed.');
+            navigate('/products');
+          } else {
+            toast.error(err.message || 'Failed to load checkout data');
+          }
         }
       }
     };
 
     initializeCheckout();
-  }, [isAuthenticated, user, sameBillingAddress, isInitialized, addDebugInfo]);
+  }, [isAuthenticated, user, sameBillingAddress, isInitialized, addDebugInfo, dispatch, navigate]);
 
-  // Update address fields for authenticated users
   useEffect(() => {
-    if (user && isInitialized && !shippingAddress.firstName) {
-      addDebugInfo(`Populating user data: ${user.name}, ${user.email}`);
-      const firstName = user.name?.split(' ')[0] || '';
-      const lastName = user.name?.split(' ').slice(1).join(' ') || '';
-      setShippingAddress((prev) => ({
-        ...prev,
-        firstName,
-        lastName,
-        email: user.email,
-        phone: user.phone || '',
-      }));
-      if (sameBillingAddress) {
-        setBillingAddress((prev) => ({
-          ...prev,
-          firstName,
-          lastName,
-          email: user.email,
-          phone: user.phone || '',
-        }));
-      }
-    }
-  }, [user, isInitialized, sameBillingAddress, addDebugInfo]);
-
-  // Redirect if cart is empty
-  useEffect(() => {
-    if (isInitialized && cartItems.length === 0) {
+    if (isInitialized && cartItems.length === 0 && !isLoading && !error) {
       addDebugInfo('Cart is empty, redirecting...');
-      navigate('/cart');
+      toast.error('Your cart is empty. Please add items to proceed.');
+      navigate('/products');
     }
-  }, [isInitialized, cartItems.length, navigate, addDebugInfo]);
-
-  const handleAddNewAddress = useCallback(() => {
-    addDebugInfo('Add New Address clicked');
-    setIsModalOpen(true);
-    setTempAddress({
-      address: '',
-      apartment: '',
-      city: 'Nairobi',
-      state: 'Nairobi',
-      zipCode: '',
-    });
-  }, [addDebugInfo]);
-
-  const handleModalSubmit = useCallback(() => {
-    const updatedAddress = {
-      firstName: shippingAddress.firstName,
-      lastName: shippingAddress.lastName,
-      email: shippingAddress.email,
-      phone: shippingAddress.phone,
-      address: tempAddress.address || '',
-      apartment: tempAddress.apartment || '',
-      city: 'Nairobi',
-      state: 'Nairobi',
-      zipCode: tempAddress.zipCode || '',
-    };
-
-    setShippingAddress(updatedAddress);
-    if (sameBillingAddress) {
-      setBillingAddress(updatedAddress);
-    }
-    setIsModalOpen(false);
-    addDebugInfo('Address updated successfully');
-  }, [tempAddress, sameBillingAddress, shippingAddress, addDebugInfo]);
-
-  const validateForm = useCallback((): boolean => {
-    const requiredFields = ['firstName', 'lastName', 'email', 'phone', 'address'];
-    const isShippingValid =
-      requiredFields.every((field) => shippingAddress[field as keyof Address]?.trim() !== '') &&
-      validator.isEmail(shippingAddress.email) &&
-      validator.isMobilePhone(shippingAddress.phone, 'any');
-    const isValid = cartItems.length > 0 && isShippingValid;
-    addDebugInfo(`Form validation - Valid: ${isValid}, Items: ${cartItems.length}, Shipping valid: ${isShippingValid}`);
-    return isValid;
-  }, [shippingAddress, cartItems.length, addDebugInfo]);
+  }, [isInitialized, cartItems.length, isLoading, error, navigate, addDebugInfo]);
 
   const handleRemoveItem = useCallback(
     debounce(async (id: string) => {
       addDebugInfo(`Removing item: ${id}`);
       try {
-        await cartAPI.removeFromCart(id);
-        const response = await checkoutAPI.getCheckoutData();
-        setCartItems(response.data.cart_items);
-        setTotal(response.data.total);
+        const sessionId = isAuthenticated ? undefined : localStorage.getItem('sessionId') || uuidv4();
+        await dispatch(removeFromCart({ id, sessionId })).unwrap();
         toast.success('Item removed from cart');
         addDebugInfo('Item removed successfully');
       } catch (err: any) {
         addDebugInfo(`Failed to remove item: ${err.message}`);
-        toast.error('Failed to remove item');
+        toast.error(err.message?.includes('Insufficient stock') ? 'Out of stock' : 'Failed to remove item');
       }
     }, 500),
-    [addDebugInfo]
+    [dispatch, isAuthenticated, addDebugInfo]
   );
 
   const handleUpdateQuantity = useCallback(
@@ -251,19 +193,97 @@ export const Checkout: React.FC = () => {
       if (quantity < 1) return;
       addDebugInfo(`Updating quantity for ${id} to ${quantity}`);
       try {
-        await cartAPI.updateCartItem(id, { quantity });
-        const response = await checkoutAPI.getCheckoutData();
-        setCartItems(response.data.cart_items);
-        setTotal(response.data.total);
+        const sessionId = isAuthenticated ? undefined : localStorage.getItem('sessionId') || uuidv4();
+        await dispatch(updateCartItem({ id, quantity, sessionId })).unwrap();
         toast.success('Cart updated');
         addDebugInfo('Quantity updated successfully');
       } catch (err: any) {
         addDebugInfo(`Failed to update quantity: ${err.message}`);
-        toast.error('Failed to update cart');
+        toast.error(err.message?.includes('Insufficient stock') ? 'Out of stock' : 'Failed to update cart');
       }
     }, 500),
-    [addDebugInfo]
+    [dispatch, isAuthenticated, addDebugInfo]
   );
+
+  const handleModalSubmit = useCallback(async () => {
+    if (!tempAddress.first_name || !tempAddress.last_name || !tempAddress.email || !tempAddress.phone_number || !tempAddress.line1) {
+      toast.error('Please fill in all required address fields');
+      return;
+    }
+    if (!validator.isEmail(tempAddress.email)) {
+      toast.error('Please enter a valid email');
+      return;
+    }
+    if (!validator.isMobilePhone(tempAddress.phone_number, 'any')) {
+      toast.error('Please enter a valid phone number');
+      return;
+    }
+
+    const updatedAddress: {
+      first_name: string;
+      last_name: string;
+      email: string;
+      phone_number: string;
+      line1: string;
+      line2?: string;
+      city: string;
+      state: string;
+      postal_code?: string;
+      country?: string;
+      type: 'shipping' | 'billing';
+      sessionId?: string;
+    } = {
+      first_name: tempAddress.first_name,
+      last_name: tempAddress.last_name,
+      email: tempAddress.email,
+      phone_number: tempAddress.phone_number,
+      line1: tempAddress.line1 || '',
+      line2: tempAddress.line2 || undefined,
+      city: tempAddress.city || 'Nairobi',
+      state: tempAddress.state || 'Nairobi',
+      postal_code: tempAddress.postal_code || undefined,
+      country: 'Kenya',
+      type: sameBillingAddress ? 'shipping' : 'billing',
+      sessionId: isAuthenticated ? undefined : localStorage.getItem('sessionId') || uuidv4(),
+    };
+
+    try {
+      addDebugInfo(`Sending address: ${JSON.stringify(updatedAddress)}`);
+      await addressAPI.createAddress(updatedAddress);
+      setShippingAddress({
+        first_name: updatedAddress.first_name,
+        last_name: updatedAddress.last_name,
+        email: updatedAddress.email,
+        phone_number: updatedAddress.phone_number,
+        line1: updatedAddress.line1,
+        line2: updatedAddress.line2 || '',
+        city: updatedAddress.city,
+        state: updatedAddress.state,
+        postal_code: updatedAddress.postal_code || '',
+        country: updatedAddress.country || 'Kenya',
+      });
+      if (sameBillingAddress) {
+        setBillingAddress({
+          first_name: updatedAddress.first_name,
+          last_name: updatedAddress.last_name,
+          email: updatedAddress.email,
+          phone_number: updatedAddress.phone_number,
+          line1: updatedAddress.line1,
+          line2: updatedAddress.line2 || '',
+          city: updatedAddress.city,
+          state: updatedAddress.state,
+          postal_code: updatedAddress.postal_code || '',
+          country: updatedAddress.country || 'Kenya',
+        });
+      }
+      setIsModalOpen(false);
+      addDebugInfo('Address saved successfully');
+      toast.success('Address saved');
+    } catch (err: any) {
+      addDebugInfo(`Failed to save address: ${err.message}`);
+      toast.error('Failed to save address');
+    }
+  }, [tempAddress, sameBillingAddress, isAuthenticated, addDebugInfo]);
 
   const handlePaystackPayment = useCallback(async () => {
     if (!validateForm()) {
@@ -275,10 +295,45 @@ export const Checkout: React.FC = () => {
     setIsProcessing(true);
     try {
       const orderData = {
-        shippingAddress,
-        billingAddress: sameBillingAddress ? shippingAddress : billingAddress,
+        shippingAddress: {
+          first_name: shippingAddress.first_name,
+          last_name: shippingAddress.last_name,
+          email: shippingAddress.email,
+          phone_number: shippingAddress.phone_number,
+          line1: shippingAddress.line1,
+          line2: shippingAddress.line2 || undefined,
+          city: shippingAddress.city,
+          state: shippingAddress.state,
+          postal_code: shippingAddress.postal_code || undefined,
+          country: 'Kenya',
+        },
+        billingAddress: sameBillingAddress
+          ? {
+              first_name: shippingAddress.first_name,
+              last_name: shippingAddress.last_name,
+              email: shippingAddress.email,
+              phone_number: shippingAddress.phone_number,
+              line1: shippingAddress.line1,
+              line2: shippingAddress.line2 || undefined,
+              city: shippingAddress.city,
+              state: shippingAddress.state,
+              postal_code: shippingAddress.postal_code || undefined,
+              country: 'Kenya',
+            }
+          : {
+              first_name: billingAddress.first_name,
+              last_name: billingAddress.last_name,
+              email: billingAddress.email,
+              phone_number: billingAddress.phone_number,
+              line1: billingAddress.line1,
+              line2: billingAddress.line2 || undefined,
+              city: billingAddress.city,
+              state: billingAddress.state,
+              postal_code: billingAddress.postal_code || undefined,
+              country: 'Kenya',
+            },
         total: orderCalculations.finalTotal,
-        sessionId: isAuthenticated ? undefined : localStorage.getItem('sessionId') || undefined,
+        sessionId: isAuthenticated ? undefined : localStorage.getItem('sessionId') || uuidv4(),
       };
 
       addDebugInfo('Creating order...');
@@ -291,10 +346,9 @@ export const Checkout: React.FC = () => {
         if (!isAuthenticated) {
           localStorage.setItem('pendingOrderId', orderId);
         }
-        dispatch(clearCart());
+        await dispatch(clearCart({ sessionId: isAuthenticated ? undefined : localStorage.getItem('sessionId') || uuidv4() })).unwrap();
         if (!isAuthenticated) {
           localStorage.removeItem('sessionId');
-          localStorage.removeItem('guest_cart');
         }
         window.location.href = response.data.authorization_url;
       } else {
@@ -303,8 +357,7 @@ export const Checkout: React.FC = () => {
       }
     } catch (error: any) {
       addDebugInfo(`Payment failed: ${error.message}`);
-      console.error('Order creation failed:', error);
-      toast.error(error.response?.data?.message || 'Failed to initialize payment');
+      toast.error(error.message?.includes('Total mismatch') ? 'Cart total mismatch' : error.message || 'Failed to initialize payment');
     } finally {
       setIsProcessing(false);
     }
@@ -319,568 +372,452 @@ export const Checkout: React.FC = () => {
     addDebugInfo,
   ]);
 
-  const handleInputChange = useCallback(
-    (target: 'shipping' | 'billing' | 'temp', field: string, value: string) => {
-      switch (target) {
-        case 'shipping':
-          setShippingAddress((prev) => ({ ...prev, [field]: value }));
-          if (sameBillingAddress) {
-            setBillingAddress((prev) => ({ ...prev, [field]: value }));
-          }
-          break;
-        case 'billing':
-          setBillingAddress((prev) => ({ ...prev, [field]: value }));
-          break;
-        case 'temp':
-          setTempAddress((prev) => ({ ...prev, [field]: value }));
-          break;
-      }
-    },
-    [sameBillingAddress]
-  );
-
-  // Show loading state
-  if (!isInitialized) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-purple-600 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading checkout...</p>
-          <div className="mt-4 text-left bg-white p-4 rounded-lg shadow max-w-md">
-            <h4 className="font-semibold text-sm mb-2">Debug Info:</h4>
-            <div className="text-xs space-y-1">
-              {debugInfo.map((info, index) => (
-                <div key={index} className="text-gray-600">{info}</div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="container mx-auto py-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-          <div className="flex items-center">
-            <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
-            <span className="text-red-800 font-medium">Error loading checkout</span>
-          </div>
-          <p className="text-red-600 mt-2">{error}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h4 className="font-semibold mb-2">Debug Information:</h4>
-          <div className="text-sm space-y-1">
-            {debugInfo.map((info, index) => (
-              <div key={index} className="text-gray-600">{info}</div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (cartItems.length === 0) {
-    return (
-      <div className="container mx-auto py-8 text-center text-gray-900">
-        <h2 className="text-2xl font-bold mb-4">Your Cart is Empty</h2>
-        <button
-          onClick={() => navigate('/products')}
-          className="bg-purple-600 text-white font-semibold py-3 px-8 rounded-xl"
-        >
-          Shop Now
-        </button>
-        <div className="mt-4 bg-white p-4 rounded-lg shadow max-w-md mx-auto">
-          <h4 className="font-semibold mb-2">Debug Information:</h4>
-          <div className="text-sm space-y-1">
-            {debugInfo.map((info, index) => (
-              <div key={index} className="text-gray-600">{info}</div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-100 py-6">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Debug Panel */}
-        <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-          <h4 className="font-semibold text-sm mb-2 text-yellow-800">Debug Info:</h4>
-          <div className="text-xs space-y-1 max-h-32 overflow-y-auto">
-            {debugInfo.map((info, index) => (
-              <div key={index} className="text-yellow-700">{info}</div>
-            ))}
-          </div>
-          <div className="mt-2 text-xs text-yellow-700">
-            <strong>Cart Total:</strong> Ksh {total.toFixed(2)} | 
-            <strong> Items:</strong> {cartItems.length} | 
-            <strong> Final Total:</strong> Ksh {orderCalculations.finalTotal.toFixed(2)}
-          </div>
+    <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <h1 className="text-3xl font-bold mb-8 text-gray-800">Checkout</h1>
+      {isLoading && <div className="text-center">Loading...</div>}
+      {error && (
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert">
+          <p>{error}</p>
         </div>
-
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Checkout</h1>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Cart Review */}
-            <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <Package className="h-5 w-5 mr-2" /> Cart Review ({cartItems.length} items)
-              </h2>
-              <div className="space-y-3">
-                {cartItems.map((item) => (
-                  <div key={item.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <img
-                      src={item.product.image || 'https://via.placeholder.com/150'}
-                      alt={item.product.name}
-                      className="w-12 h-12 object-cover rounded-lg"
-                      loading="lazy"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm text-gray-900 font-medium truncate">{item.product.name}</h3>
-                      <p className="text-xs text-gray-500">Ksh {item.product.price.toFixed(2)} each</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                        className="p-1 bg-gray-200 rounded-full text-gray-900 hover:bg-gray-300"
-                        disabled={isProcessing}
-                      >
-                        <Minus className="h-3 w-3" />
-                      </button>
-                      <span className="text-sm text-gray-900 min-w-[20px] text-center">{item.quantity}</span>
-                      <button
-                        onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                        className="p-1 bg-gray-200 rounded-full text-gray-900 hover:bg-gray-300"
-                        disabled={isProcessing}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </button>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-900">
-                        Ksh {(item.product.price * item.quantity).toFixed(2)}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => handleRemoveItem(item.id)}
-                      className="text-red-600 hover:text-red-500"
-                      title="Remove item"
-                      disabled={isProcessing}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Shipping Information */}
-            <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <MapPin className="h-5 w-5 mr-2" /> Shipping Information
-                </h2>
-                <button
-                  onClick={handleAddNewAddress}
-                  className="bg-purple-600 hover:bg-purple-700 text-white text-sm px-4 py-2 rounded-lg"
-                >
-                  Add New Address
-                </button>
-              </div>
-              <form className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
-                    <input
-                      type="text"
-                      value={shippingAddress.firstName}
-                      onChange={(e) => handleInputChange('shipping', 'firstName', e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Last Name *</label>
-                    <input
-                      type="text"
-                      value={shippingAddress.lastName}
-                      onChange={(e) => handleInputChange('shipping', 'lastName', e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
-                    <input
-                      type="email"
-                      value={shippingAddress.email}
-                      onChange={(e) => handleInputChange('shipping', 'email', e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Phone *</label>
-                    <input
-                      type="tel"
-                      value={shippingAddress.phone}
-                      onChange={(e) => handleInputChange('shipping', 'phone', e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                      required
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Address *</label>
-                  <input
-                    type="text"
-                    value={shippingAddress.address}
-                    onChange={(e) => handleInputChange('shipping', 'address', e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Apartment, Door, or Flat Number (optional)</label>
-                  <input
-                    type="text"
-                    value={shippingAddress.apartment}
-                    onChange={(e) => handleInputChange('shipping', 'apartment', e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
-                    <input
-                      type="text"
-                      value="Nairobi"
-                      disabled
-                      className="w-full bg-gray-200 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">County</label>
-                    <input
-                      type="text"
-                      value="Nairobi"
-                      disabled
-                      className="w-full bg-gray-200 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Postal Code (optional)</label>
-                  <input
-                    type="text"
-                    value={shippingAddress.zipCode}
-                    onChange={(e) => handleInputChange('shipping', 'zipCode', e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-              </form>
-            </div>
-
-            {/* Billing Address Section */}
-            <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center space-x-2 mb-4">
+      )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2">
+          {/* Shipping Address */}
+          <div className="bg-white shadow-md rounded-lg p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-4 flex items-center">
+              <MapPin className="mr-2" /> Shipping Address
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">First Name</label>
                 <input
-                  type="checkbox"
-                  id="sameBilling"
-                  checked={sameBillingAddress}
-                  onChange={(e) => setSameBillingAddress(e.target.checked)}
-                  className="w-4 h-4 text-purple-600 bg-gray-50 border-gray-300 rounded focus:ring-purple-500"
+                  type="text"
+                  className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                  value={shippingAddress.first_name}
+                  onChange={(e) => setShippingAddress({ ...shippingAddress, first_name: e.target.value })}
                 />
-                <label htmlFor="sameBilling" className="text-sm text-gray-900">Billing address same as shipping</label>
               </div>
-              {!sameBillingAddress && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-gray-900">Billing Address</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
-                      <input
-                        type="text"
-                        value={billingAddress.firstName}
-                        onChange={(e) => handleInputChange('billing', 'firstName', e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Last Name *</label>
-                      <input
-                        type="text"
-                        value={billingAddress.lastName}
-                        onChange={(e) => handleInputChange('billing', 'lastName', e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Address *</label>
-                    <input
-                      type="text"
-                      value={billingAddress.address}
-                      onChange={(e) => handleInputChange('billing', 'address', e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Apartment, Door, or Flat Number (optional)</label>
-                    <input
-                      type="text"
-                      value={billingAddress.apartment}
-                      onChange={(e) => handleInputChange('billing', 'apartment', e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
-                      <input
-                        type="text"
-                        value="Nairobi"
-                        disabled
-                        className="w-full bg-gray-200 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">County</label>
-                      <input
-                        type="text"
-                        value="Nairobi"
-                        disabled
-                        className="w-full bg-gray-200 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Postal Code (optional)</label>
-                    <input
-                      type="text"
-                      value={billingAddress.zipCode}
-                      onChange={(e) => handleInputChange('billing', 'zipCode', e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Payment Information */}
-            <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Payment Method</h2>
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <div className="flex-shrink-0">
-                    <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-green-800">Proceed To Payment</h3>
-                    <p className="text-xs text-green-600 mt-1">
-                      Your payment will be processed securely through Paystack. You'll be redirected to complete your payment.
-                    </p>
-                  </div>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Last Name</label>
+                <input
+                  type="text"
+                  className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                  value={shippingAddress.last_name}
+                  onChange={(e) => setShippingAddress({ ...shippingAddress, last_name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Email</label>
+                <input
+                  type="email"
+                  className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                  value={shippingAddress.email}
+                  onChange={(e) => setShippingAddress({ ...shippingAddress, email: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Phone Number</label>
+                <input
+                  type="text"
+                  className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                  value={shippingAddress.phone_number}
+                  onChange={(e) => setShippingAddress({ ...shippingAddress, phone_number: e.target.value })}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700">Address</label>
+                <input
+                  type="text"
+                  className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                  value={shippingAddress.line1}
+                  onChange={(e) => setShippingAddress({ ...shippingAddress, line1: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Apartment, suite, etc. (optional)</label>
+                <input
+                  type="text"
+                  className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                  value={shippingAddress.line2 || ''}
+                  onChange={(e) => setShippingAddress({ ...shippingAddress, line2: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">City</label>
+                <input
+                  type="text"
+                  className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                  value={shippingAddress.city}
+                  onChange={(e) => setShippingAddress({ ...shippingAddress, city: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">State</label>
+                <input
+                  type="text"
+                  className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                  value={shippingAddress.state}
+                  onChange={(e) => setShippingAddress({ ...shippingAddress, state: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Postal Code (optional)</label>
+                <input
+                  type="text"
+                  className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                  value={shippingAddress.postal_code || ''}
+                  onChange={(e) => setShippingAddress({ ...shippingAddress, postal_code: e.target.value })}
+                />
               </div>
             </div>
-
-            {/* Place Order Button */}
             <button
-              onClick={handlePaystackPayment}
-              disabled={isProcessing || !validateForm()}
-              className="w-full flex items-center justify-center space-x-2 px-6 py-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-xl text-lg font-semibold transition-all duration-300"
+              className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              onClick={() => {
+                setTempAddress(shippingAddress);
+                setIsModalOpen(true);
+              }}
             >
-              {isProcessing ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                  <span>Processing...</span>
-                </>
-              ) : (
-                <>
-                  <span>Pay</span>
-                  <span className="font-bold">Ksh {orderCalculations.finalTotal.toFixed(2)}</span>
-                </>
-              )}
+              Save Address
             </button>
           </div>
 
-          {/* Order Summary Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm sticky top-24">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h3>
-              <div className="space-y-2 mb-4">
-                {cartItems.map((item) => (
-                  <div key={item.id} className="flex items-center space-x-3">
-                    <div className="relative">
-                      <img
-                        src={item.product.image || 'https://via.placeholder.com/150'}
-                        alt={item.product.name}
-                        className="w-10 h-10 object-cover rounded-lg"
-                        loading="lazy"
-                      />
-                      <span className="absolute -top-2 -right-2 bg-purple-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                        {item.quantity}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-gray-900 text-xs font-medium truncate">{item.product.name}</p>
-                      <p className="text-gray-500 text-xs">Ksh {item.product.price.toFixed(2)} each</p>
-                    </div>
-                    <p className="text-gray-900 text-sm font-semibold">
-                      Ksh {(item.product.price * item.quantity).toFixed(2)}
-                    </p>
+          {/* Billing Address */}
+          <div className="bg-white shadow-md rounded-lg p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-4 flex items-center">
+              <Shield className="mr-2" /> Billing Address
+            </h2>
+            <label className="flex items-center mb-4">
+              <input
+                type="checkbox"
+                checked={sameBillingAddress}
+                onChange={(e) => setSameBillingAddress(e.target.checked)}
+                className="mr-2"
+              />
+              Same as shipping address
+            </label>
+            {!sameBillingAddress && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">First Name</label>
+                  <input
+                    type="text"
+                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                    value={billingAddress.first_name}
+                    onChange={(e) => setBillingAddress({ ...billingAddress, first_name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Last Name</label>
+                  <input
+                    type="text"
+                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                    value={billingAddress.last_name}
+                    onChange={(e) => setBillingAddress({ ...billingAddress, last_name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Email</label>
+                  <input
+                    type="email"
+                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                    value={billingAddress.email}
+                    onChange={(e) => setBillingAddress({ ...billingAddress, email: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Phone Number</label>
+                  <input
+                    type="text"
+                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                    value={billingAddress.phone_number}
+                    onChange={(e) => setBillingAddress({ ...billingAddress, phone_number: e.target.value })}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700">Address</label>
+                  <input
+                    type="text"
+                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                    value={billingAddress.line1}
+                    onChange={(e) => setBillingAddress({ ...billingAddress, line1: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Apartment, suite, etc. (optional)</label>
+                  <input
+                    type="text"
+                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                    value={billingAddress.line2 || ''}
+                    onChange={(e) => setBillingAddress({ ...billingAddress, line2: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">City</label>
+                  <input
+                    type="text"
+                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                    value={billingAddress.city}
+                    onChange={(e) => setBillingAddress({ ...billingAddress, city: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">State</label>
+                  <input
+                    type="text"
+                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                    value={billingAddress.state}
+                    onChange={(e) => setBillingAddress({ ...billingAddress, state: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Postal Code (optional)</label>
+                  <input
+                    type="text"
+                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                    value={billingAddress.postal_code || ''}
+                    onChange={(e) => setBillingAddress({ ...billingAddress, postal_code: e.target.value })}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Order Items */}
+          <div className="bg-white shadow-md rounded-lg p-6">
+            <h2 className="text-xl font-semibold mb-4 flex items-center">
+              <Package className="mr-2" /> Order Items
+            </h2>
+            {cartItems.length === 0 && !isLoading && (
+              <p className="text-gray-500">Your cart is empty.</p>
+            )}
+            {cartItems.map((item) => (
+              <div key={item.id} className="flex items-center border-b py-4">
+                <img
+                  src={item.product.image || 'https://via.placeholder.com/100'}
+                  alt={item.product.name}
+                  className="w-20 h-20 object-cover rounded mr-4"
+                />
+                <div className="flex-1">
+                  <h3 className="text-lg font-medium">{item.product.name}</h3>
+                  <p className="text-gray-600">KSh {item.product.price.toFixed(2)}</p>
+                  <div className="flex items-center mt-2">
+                    <button
+                      className="p-1 bg-gray-200 rounded"
+                      onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                      disabled={item.quantity <= 1}
+                    >
+                      <Minus size={16} />
+                    </button>
+                    <span className="mx-2">{item.quantity}</span>
+                    <button
+                      className="p-1 bg-gray-200 rounded"
+                      onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                      disabled={item.quantity >= item.product.stock}
+                    >
+                      <Plus size={16} />
+                    </button>
+                    <button
+                      className="ml-4 text-red-600"
+                      onClick={() => handleRemoveItem(item.id)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
-                ))}
+                </div>
+                <p className="text-lg font-medium">KSh {(item.product.price * item.quantity).toFixed(2)}</p>
               </div>
-              <div className="space-y-2 border-t border-gray-200 pt-3">
-                <div className="flex justify-between text-gray-600 text-sm">
-                  <span>Subtotal</span>
-                  <span>Ksh {total.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-gray-600 text-sm">
-                  <span>Shipping</span>
-                  <span className={orderCalculations.shipping === 0 ? 'text-green-600' : 'text-gray-600'}>
-                    {orderCalculations.shipping === 0 ? 'Free' : `Ksh ${orderCalculations.shipping.toFixed(2)}`}
-                  </span>
-                </div>
-                <div className="flex justify-between text-gray-600 text-sm">
-                  <span>Tax</span>
-                  <span>Ksh {orderCalculations.tax.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-lg font-semibold text-gray-900 border-t border-gray-200 pt-3">
-                  <span>Total</span>
-                  <span>Ksh {orderCalculations.finalTotal.toFixed(2)}</span>
-                </div>
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
-                <div className="flex items-center space-x-2 text-green-600 text-sm">
-                  <Shield className="h-4 w-4" />
-                  <span>Secure Payment with Paystack</span>
-                </div>
-                <div className="flex items-center space-x-2 text-blue-600 text-sm">
-                  <Truck className="h-4 w-4" />
-                  <span>Free Shipping over Ksh 1000</span>
-                </div>
-                <div className="flex items-center space-x-2 text-purple-600 text-sm">
-                  <Check className="h-4 w-4" />
-                  <span>30-Day Return Policy</span>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* Add New Address Modal */}
-        <Transition appear show={isModalOpen} as={Fragment}>
-          <Dialog as="div" className="relative z-50" onClose={() => setIsModalOpen(false)}>
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300"
-              enterFrom="opacity-0"
-              enterTo="opacity-100"
-              leave="ease-in duration-200"
-              leaveFrom="opacity-100"
-              leaveTo="opacity-0"
-            >
-              <div className="fixed inset-0 bg-black bg-opacity-50" />
-            </Transition.Child>
-            <div className="fixed inset-0 overflow-y-auto">
-              <div className="flex min-h-full items-center justify-center p-4">
-                <Transition.Child
-                  as={Fragment}
-                  enter="ease-out duration-300"
-                  enterFrom="opacity-0 scale-95"
-                  enterTo="opacity-100 scale-100"
-                  leave="ease-in duration-200"
-                  leaveFrom="opacity-100 scale-100"
-                  leaveTo="opacity-0 scale-95"
-                >
-                  <Dialog.Panel className="w-full max-w-lg bg-white rounded-xl p-6 space-y-4 shadow-lg">
-                    <Dialog.Title className="text-lg font-semibold text-gray-900">Add New Address</Dialog.Title>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Address *</label>
-                        <input
-                          type="text"
-                          value={tempAddress.address || ''}
-                          onChange={(e) => handleInputChange('temp', 'address', e.target.value)}
-                          className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Apartment, Door, or Flat Number (optional)</label>
-                        <input
-                          type="text"
-                          value={tempAddress.apartment || ''}
-                          onChange={(e) => handleInputChange('temp', 'apartment', e.target.value)}
-                          className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                        />
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
-                          <input
-                            type="text"
-                            value="Nairobi"
-                            disabled
-                            className="w-full bg-gray-200 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">County</label>
-                          <input
-                            type="text"
-                            value="Nairobi"
-                            disabled
-                            className="w-full bg-gray-200 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Postal Code (optional)</label>
-                        <input
-                          type="text"
-                          value={tempAddress.zipCode || ''}
-                          onChange={(e) => handleInputChange('temp', 'zipCode', e.target.value)}
-                          className="w-full bg-gray-50 border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex justify-end space-x-4">
-                      <button
-                        onClick={() => setIsModalOpen(false)}
-                        className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg text-sm hover:bg-gray-300"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleModalSubmit}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:bg-gray-400"
-                        disabled={!tempAddress.address}
-                      >
-                        Save Address
-                      </button>
-                    </div>
-                  </Dialog.Panel>
-                </Transition.Child>
+        {/* Order Summary */}
+        <div className="lg:col-span-1">
+          <div className="bg-white shadow-md rounded-lg p-6 sticky top-4">
+            <h2 className="text-xl font-semibold mb-4 flex items-center">
+              <Check className="mr-2" /> Order Summary
+            </h2>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span>Subtotal</span>
+                <span>KSh {total.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Tax (8%)</span>
+                <span>KSh {orderCalculations.tax.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Shipping</span>
+                <span>KSh {orderCalculations.shipping.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between font-semibold text-lg">
+                <span>Total</span>
+                <span>KSh {orderCalculations.finalTotal.toFixed(2)}</span>
               </div>
             </div>
-          </Dialog>
-        </Transition>
+            <button
+              className={`mt-6 w-full bg-green-600 text-white py-3 rounded-md flex items-center justify-center ${
+                isProcessing || !validateForm() ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'
+              }`}
+              onClick={handlePaystackPayment}
+              disabled={isProcessing || cartItems.length === 0 || !validateForm()}
+            >
+              {isProcessing ? (
+                'Processing...'
+              ) : (
+                <>
+                  <Truck className="mr-2" /> Proceed to Payment
+                </>
+              )}
+            </button>
+            {debugInfo.length > 0 && (
+              <div className="mt-4 text-sm text-gray-500">
+                <p className="font-semibold">Debug Info:</p>
+                {debugInfo.map((info, index) => (
+                  <p key={index}>{info}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Address Modal */}
+      <Transition appear show={isModalOpen} as={Fragment}>
+        <Dialog as="div" className="relative z-10" onClose={() => setIsModalOpen(false)}>
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black bg-opacity-25" />
+          </Transition.Child>
+          <div className="fixed inset-0 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 text-center">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                  <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900">
+                    Add New Address
+                  </Dialog.Title>
+                  <div className="mt-2">
+                    <div className="grid grid-cols-1 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">First Name</label>
+                        <input
+                          type="text"
+                          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                          value={tempAddress.first_name || ''}
+                          onChange={(e) => setTempAddress({ ...tempAddress, first_name: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Last Name</label>
+                        <input
+                          type="text"
+                          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                          value={tempAddress.last_name || ''}
+                          onChange={(e) => setTempAddress({ ...tempAddress, last_name: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Email</label>
+                        <input
+                          type="email"
+                          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                          value={tempAddress.email || ''}
+                          onChange={(e) => setTempAddress({ ...tempAddress, email: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Phone Number</label>
+                        <input
+                          type="text"
+                          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                          value={tempAddress.phone_number || ''}
+                          onChange={(e) => setTempAddress({ ...tempAddress, phone_number: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Address</label>
+                        <input
+                          type="text"
+                          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                          value={tempAddress.line1 || ''}
+                          onChange={(e) => setTempAddress({ ...tempAddress, line1: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Apartment, suite, etc. (optional)</label>
+                        <input
+                          type="text"
+                          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                          value={tempAddress.line2 || ''}
+                          onChange={(e) => setTempAddress({ ...tempAddress, line2: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">City</label>
+                        <input
+                          type="text"
+                          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                          value={tempAddress.city || 'Nairobi'}
+                          onChange={(e) => setTempAddress({ ...tempAddress, city: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">State</label>
+                        <input
+                          type="text"
+                          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                          value={tempAddress.state || 'Nairobi'}
+                          onChange={(e) => setTempAddress({ ...tempAddress, state: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Postal Code (optional)</label>
+                        <input
+                          type="text"
+                          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                          value={tempAddress.postal_code || ''}
+                          onChange={(e) => setTempAddress({ ...tempAddress, postal_code: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      type="button"
+                      className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                      onClick={handleModalSubmit}
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      className="ml-2 inline-flex justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      onClick={() => setIsModalOpen(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
     </div>
   );
 };

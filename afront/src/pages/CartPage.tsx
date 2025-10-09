@@ -1,57 +1,55 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { RootState, AppDispatch } from '../store/store';
-import { fetchCart, addToCart, updateCartItem, removeFromCart, clearCart } from '../store/cartSlice';
+import { fetchCart, updateCartItem, removeFromCart, clearCart } from '../store/cartSlice';
 import { Trash2, Plus, Minus } from 'lucide-react';
 import toast from 'react-hot-toast';
+import debounce from 'lodash.debounce';
 
 const CartPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const { items, total, itemCount, isLoading, error } = useSelector((state: RootState) => state.cart);
-  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const sessionId = localStorage.getItem('sessionId') || undefined;
 
   useEffect(() => {
-    dispatch(fetchCart());
-  }, [dispatch]);
+    dispatch(fetchCart({ sessionId }));
+  }, [dispatch, sessionId]);
 
-  const handleAddToCart = async (productId: string, quantity: number) => {
-    try {
-      await dispatch(addToCart({ product_id: productId, quantity })).unwrap();
-      toast.success('Item added to cart');
-    } catch (err) {
-      toast.error('Failed to add item');
-    }
-  };
+  const handleUpdateQuantity = useCallback(
+    debounce(async (id: string, quantity: number) => {
+      if (quantity < 1) return;
+      try {
+        await dispatch(updateCartItem({ id, quantity, sessionId })).unwrap();
+        toast.success('Cart updated');
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to update cart');
+      }
+    }, 500),
+    [dispatch, sessionId]
+  );
 
-  const handleUpdateQuantity = async (id: string, quantity: number) => {
-    if (quantity < 1) return;
-    try {
-      await dispatch(updateCartItem({ id, quantity })).unwrap();
-      toast.success('Cart updated');
-    } catch (err) {
-      toast.error('Failed to update cart');
-    }
-  };
+  const handleRemoveItem = useCallback(
+    debounce(async (id: string) => {
+      try {
+        await dispatch(removeFromCart({ id, sessionId })).unwrap();
+        toast.success('Item removed');
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to remove item');
+      }
+    }, 500),
+    [dispatch, sessionId]
+  );
 
-  const handleRemoveItem = async (id: string) => {
+  const handleClearCart = useCallback(async () => {
     try {
-      await dispatch(removeFromCart(id)).unwrap();
-      toast.success('Item removed');
-    } catch (err) {
-      toast.error('Failed to remove item');
-    }
-  };
-
-  const handleClearCart = async () => {
-    try {
-      await dispatch(clearCart()).unwrap();
+      await dispatch(clearCart({ sessionId })).unwrap();
       toast.success('Cart cleared');
-    } catch (err) {
-      toast.error('Failed to clear cart');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to clear cart');
     }
-  };
+  }, [dispatch, sessionId]);
 
   if (isLoading) {
     return <div className="container mx-auto py-8 text-white">Loading...</div>;
@@ -97,6 +95,7 @@ const CartPage: React.FC = () => {
                     <button
                       onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
                       className="p-2 bg-gray-700 rounded-full text-white"
+                      disabled={item.quantity <= 1}
                     >
                       <Minus className="h-4 w-4" />
                     </button>
@@ -104,6 +103,7 @@ const CartPage: React.FC = () => {
                     <button
                       onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
                       className="p-2 bg-gray-700 rounded-full text-white"
+                      disabled={item.quantity >= item.product.stock}
                     >
                       <Plus className="h-4 w-4" />
                     </button>
@@ -144,7 +144,7 @@ const CartPage: React.FC = () => {
                 </div>
                 <div className="flex justify-between text-xl font-bold text-white border-t border-gray-700 pt-3">
                   <span>Total</span>
-                  <span>Ksh {(total + (total * 0.08) + (total > 1000 ? 0 : 50)).toFixed(2)}</span>
+                  <span>Ksh {(total + total * 0.08 + (total > 1000 ? 0 : 50)).toFixed(2)}</span>
                 </div>
               </div>
               <button
