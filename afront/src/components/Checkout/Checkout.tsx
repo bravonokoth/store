@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, Fragment, useMemo } from 'reac
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store/store';
-import { fetchCart, clearCart, updateCartItem, removeFromCart } from '../../store/cartSlice';
+// Ensure all actions are imported, including clearError
+import { fetchCart, clearCart, updateCartItem, removeFromCart, calculateTotals, clearError } from '../../store/cartSlice';
 import { checkoutAPI, orderAPI, addressAPI } from '../../services/api';
 import { Check, MapPin, Package, Shield, Truck, Trash2, Plus, Minus } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -23,7 +24,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
     if (this.state.hasError) {
       return (
         <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4">
-          <p>Something went wrong. Please try refreshing the page.</p>
+          <p>Something went wrong. Please try refreshing the page or contact support.</p>
         </div>
       );
     }
@@ -75,12 +76,22 @@ export const Checkout: React.FC = () => {
   });
   const [billingAddress, setBillingAddress] = useState<Address>({ ...shippingAddress });
   const [sameBillingAddress, setSameBillingAddress] = useState(true);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
-  const { items: cartItems, total, isLoading, error } = useSelector((state: RootState) => state.cart);
+  const { items: cartItems, total, itemCount, isLoading, error } = useSelector((state: RootState) => state.cart);
+
+  // Generate or retrieve sessionId
+  const getSessionId = useCallback((): string => {
+    let sessionId = localStorage.getItem('session_id');
+    if (!sessionId) {
+      sessionId = uuidv4();
+      localStorage.setItem('session_id', sessionId);
+    }
+    return sessionId;
+  }, []);
 
   const addDebugInfo = useCallback((info: string) => {
     console.log('DEBUG:', info);
@@ -88,13 +99,13 @@ export const Checkout: React.FC = () => {
   }, []);
 
   const orderCalculations = useMemo(() => {
-    addDebugInfo(`Calculating totals - Cart total: ${total}, Items count: ${cartItems.length}`);
-    const tax = total * 0.08;
-    const shipping = total > 1000 ? 0 : 50;
-    const finalTotal = total + tax + shipping;
+    addDebugInfo(`Calculating totals - Cart total: ${total}, Items count: ${itemCount}`);
+    const tax = Number(total || 0) * 0.08;
+    const shipping = Number(total || 0) > 1000 ? 0 : 50;
+    const finalTotal = Number(total || 0) + tax + shipping;
     addDebugInfo(`Final calculations - Tax: ${tax}, Shipping: ${shipping}, Total: ${finalTotal}`);
     return { tax, shipping, finalTotal };
-  }, [total, cartItems.length, addDebugInfo]);
+  }, [total, itemCount, addDebugInfo]);
 
   const validateForm = useCallback(() => {
     const isValidEmail = validator.isEmail(shippingAddress.email);
@@ -121,88 +132,79 @@ export const Checkout: React.FC = () => {
   }, [shippingAddress, billingAddress, sameBillingAddress, addDebugInfo]);
 
   useEffect(() => {
-    const initializeCheckout = async () => {
-      let sessionId: string = isAuthenticated ? '' : (localStorage.getItem('sessionId') || uuidv4());
-      if (!isAuthenticated && !localStorage.getItem('sessionId')) {
-        localStorage.setItem('sessionId', sessionId);
-        addDebugInfo(`Created new session ID: ${sessionId}`);
-      }
+    setIsMounted(true);
+    dispatch(calculateTotals()); // Recalculate totals on mount
+  }, [dispatch]);
 
-      if (!isInitialized) {
-        addDebugInfo('Fetching checkout data...');
-        try {
-          await dispatch(fetchCart({ sessionId: isAuthenticated ? undefined : sessionId })).unwrap();
-          const response = await checkoutAPI.getCheckoutData(isAuthenticated ? undefined : sessionId);
-          addDebugInfo(`Checkout API response: ${JSON.stringify(response.data)}`);
-          const { addresses } = response.data;
-          if (addresses.length > 0) {
-            const defaultAddress = addresses.find((addr: any) => addr.type === 'shipping') || addresses[0];
-            setShippingAddress({
-              first_name: defaultAddress.first_name || user?.name?.split(' ')[0] || '',
-              last_name: defaultAddress.last_name || user?.name?.split(' ')[1] || '',
-              email: defaultAddress.email || user?.email || '',
-              phone_number: defaultAddress.phone_number || user?.phone || '',
-              line1: defaultAddress.line1 || '',
-              line2: defaultAddress.line2 || '',
-              city: defaultAddress.city || 'Nairobi',
-              state: defaultAddress.state || 'Nairobi',
-              postal_code: defaultAddress.postal_code || '',
-              country: defaultAddress.country || 'Kenya',
-            });
-            if (sameBillingAddress) {
-              setBillingAddress({
-                first_name: defaultAddress.first_name || user?.name?.split(' ')[0] || '',
-                last_name: defaultAddress.last_name || user?.name?.split(' ')[1] || '',
-                email: defaultAddress.email || user?.email || '',
-                phone_number: defaultAddress.phone_number || user?.phone || '',
-                line1: defaultAddress.line1 || '',
-                line2: defaultAddress.line2 || '',
-                city: defaultAddress.city || 'Nairobi',
-                state: defaultAddress.state || 'Nairobi',
-                postal_code: defaultAddress.postal_code || '',
-                country: defaultAddress.country || 'Kenya',
-              });
-            }
+  useEffect(() => {
+    const initializeCheckout = async () => {
+      const sessionId = getSessionId();
+      addDebugInfo(`Using session ID: ${sessionId}`);
+
+      addDebugInfo('Fetching checkout data...');
+      try {
+        const cartResponse = await dispatch(fetchCart({ sessionId })).unwrap();
+        addDebugInfo(`Cart response: ${JSON.stringify(cartResponse)}`);
+        const checkoutResponse = await checkoutAPI.getCheckoutData(sessionId);
+        addDebugInfo(`Checkout API response: ${JSON.stringify(checkoutResponse.data)}`);
+        const { addresses } = checkoutResponse.data;
+        if (addresses?.length > 0) {
+          const defaultAddress = addresses.find((addr: any) => addr.type === 'shipping') || addresses[0];
+          const newShippingAddress = {
+            first_name: defaultAddress.first_name || user?.name?.split(' ')[0] || '',
+            last_name: defaultAddress.last_name || user?.name?.split(' ')[1] || '',
+            email: defaultAddress.email || user?.email || '',
+            phone_number: defaultAddress.phone_number || user?.phone || '',
+            line1: defaultAddress.line1 || '',
+            line2: defaultAddress.line2 || '',
+            city: defaultAddress.city || 'Nairobi',
+            state: defaultAddress.state || 'Nairobi',
+            postal_code: defaultAddress.postal_code || '',
+            country: defaultAddress.country || 'Kenya',
+          };
+          setShippingAddress(newShippingAddress);
+          if (sameBillingAddress) {
+            setBillingAddress(newShippingAddress);
           }
-          addDebugInfo('Checkout data fetched successfully');
-          setIsInitialized(true);
-        } catch (err: any) {
-          addDebugInfo(`Checkout data fetch failed: ${err.message}`);
-          if (err.message?.includes('Cart is empty')) {
-            toast.error('Your cart is empty. Please add items to proceed.');
-            navigate('/products');
-          } else {
-            toast.error(err.message || 'Failed to load checkout data');
-          }
+        }
+        addDebugInfo('Checkout data fetched successfully');
+      } catch (err: any) {
+        addDebugInfo(`Checkout data fetch failed: ${err.message || err}`);
+        if (err?.includes('Cart is empty')) {
+          toast.error('Your cart is empty. Please add items to proceed.');
+          navigate('/products');
+        } else {
+          toast.error(err.message || 'Failed to load checkout data');
         }
       }
     };
 
     initializeCheckout();
-  }, [isAuthenticated, user, sameBillingAddress, isInitialized, addDebugInfo, dispatch, navigate]);
+  }, [isAuthenticated, user, sameBillingAddress, dispatch, navigate, addDebugInfo, getSessionId]);
 
   useEffect(() => {
-    if (isInitialized && cartItems.length === 0 && !isLoading && !error) {
+    if (cartItems.length === 0 && !isLoading && !error) {
       addDebugInfo('Cart is empty, redirecting...');
       toast.error('Your cart is empty. Please add items to proceed.');
       navigate('/products');
     }
-  }, [isInitialized, cartItems.length, isLoading, error, navigate, addDebugInfo]);
+  }, [cartItems.length, isLoading, error, navigate, addDebugInfo]);
 
   const handleRemoveItem = useCallback(
     debounce(async (id: string) => {
       addDebugInfo(`Removing item: ${id}`);
       try {
-        const sessionId = isAuthenticated ? undefined : localStorage.getItem('sessionId') || uuidv4();
+        const sessionId = getSessionId();
         await dispatch(removeFromCart({ id, sessionId })).unwrap();
+        dispatch(calculateTotals());
         toast.success('Item removed from cart');
         addDebugInfo('Item removed successfully');
       } catch (err: any) {
-        addDebugInfo(`Failed to remove item: ${err.message}`);
-        toast.error(err.message?.includes('Insufficient stock') ? 'Out of stock' : 'Failed to remove item');
+        addDebugInfo(`Failed to remove item: ${err.message || err}`);
+        toast.error(err?.includes('Insufficient stock') ? 'Out of stock' : 'Failed to remove item');
       }
     }, 500),
-    [dispatch, isAuthenticated, addDebugInfo]
+    [dispatch, addDebugInfo, getSessionId]
   );
 
   const handleUpdateQuantity = useCallback(
@@ -210,20 +212,27 @@ export const Checkout: React.FC = () => {
       if (quantity < 1) return;
       addDebugInfo(`Updating quantity for ${id} to ${quantity}`);
       try {
-        const sessionId = isAuthenticated ? undefined : localStorage.getItem('sessionId') || uuidv4();
+        const sessionId = getSessionId();
         await dispatch(updateCartItem({ id, quantity, sessionId })).unwrap();
+        dispatch(calculateTotals());
         toast.success('Cart updated');
         addDebugInfo('Quantity updated successfully');
       } catch (err: any) {
-        addDebugInfo(`Failed to update quantity: ${err.message}`);
-        toast.error(err.message?.includes('Insufficient stock') ? 'Out of stock' : 'Failed to update cart');
+        addDebugInfo(`Failed to update quantity: ${err.message || err}`);
+        toast.error(err?.includes('Insufficient stock') ? 'Out of stock' : 'Failed to update cart');
       }
     }, 500),
-    [dispatch, isAuthenticated, addDebugInfo]
+    [dispatch, addDebugInfo, getSessionId]
   );
 
   const handleModalSubmit = useCallback(async () => {
-    if (!tempAddress.first_name || !tempAddress.last_name || !tempAddress.email || !tempAddress.phone_number || !tempAddress.line1) {
+    if (
+      !tempAddress.first_name ||
+      !tempAddress.last_name ||
+      !tempAddress.email ||
+      !tempAddress.phone_number ||
+      !tempAddress.line1
+    ) {
       toast.error('Please fill in all required address fields');
       return;
     }
@@ -248,7 +257,7 @@ export const Checkout: React.FC = () => {
       postal_code?: string;
       country?: string;
       type: 'shipping' | 'billing';
-      sessionId?: string;
+      sessionId: string;
     } = {
       first_name: tempAddress.first_name,
       last_name: tempAddress.last_name,
@@ -261,7 +270,7 @@ export const Checkout: React.FC = () => {
       postal_code: tempAddress.postal_code || undefined,
       country: 'Kenya',
       type: sameBillingAddress ? 'shipping' : 'billing',
-      sessionId: isAuthenticated ? undefined : localStorage.getItem('sessionId') || uuidv4(),
+      sessionId: getSessionId(),
     };
 
     try {
@@ -297,10 +306,10 @@ export const Checkout: React.FC = () => {
       addDebugInfo('Address saved successfully');
       toast.success('Address saved');
     } catch (err: any) {
-      addDebugInfo(`Failed to save address: ${err.message}`);
+      addDebugInfo(`Failed to save address: ${err.message || err}`);
       toast.error('Failed to save address');
     }
-  }, [tempAddress, sameBillingAddress, isAuthenticated, addDebugInfo]);
+  }, [tempAddress, sameBillingAddress, addDebugInfo, getSessionId]);
 
   const handlePaystackPayment = useCallback(async () => {
     if (!validateForm()) {
@@ -311,6 +320,7 @@ export const Checkout: React.FC = () => {
     addDebugInfo(`Starting payment process - Total: ${orderCalculations.finalTotal}`);
     setIsProcessing(true);
     try {
+      const sessionId = getSessionId();
       const orderData = {
         shippingAddress: {
           first_name: shippingAddress.first_name,
@@ -350,7 +360,7 @@ export const Checkout: React.FC = () => {
               country: 'Kenya',
             },
         total: orderCalculations.finalTotal,
-        sessionId: isAuthenticated ? undefined : localStorage.getItem('sessionId') || uuidv4(),
+        sessionId,
       };
 
       addDebugInfo('Creating order...');
@@ -363,9 +373,9 @@ export const Checkout: React.FC = () => {
         if (!isAuthenticated) {
           localStorage.setItem('pendingOrderId', orderId);
         }
-        await dispatch(clearCart({ sessionId: isAuthenticated ? undefined : localStorage.getItem('sessionId') || uuidv4() })).unwrap();
+        await dispatch(clearCart({ sessionId })).unwrap();
         if (!isAuthenticated) {
-          localStorage.removeItem('sessionId');
+          localStorage.removeItem('session_id');
         }
         window.location.href = response.data.authorization_url;
       } else {
@@ -373,8 +383,8 @@ export const Checkout: React.FC = () => {
         toast.error('Failed to initialize payment');
       }
     } catch (error: any) {
-      addDebugInfo(`Payment failed: ${error.message}`);
-      toast.error(error.message?.includes('Total mismatch') ? 'Cart total mismatch' : error.message || 'Failed to initialize payment');
+      addDebugInfo(`Payment failed: ${error.message || error}`);
+      toast.error(error?.includes('Total mismatch') ? 'Cart total mismatch' : error || 'Failed to initialize payment');
     } finally {
       setIsProcessing(false);
     }
@@ -387,142 +397,55 @@ export const Checkout: React.FC = () => {
     isAuthenticated,
     dispatch,
     addDebugInfo,
+    getSessionId,
   ]);
+
+  if (!isMounted) return null;
 
   return (
     <ErrorBoundary>
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <h1 className="text-3xl font-bold mb-8 text-gray-800">Checkout</h1>
         {isLoading && <div className="text-center">Loading...</div>}
+        {/* Error Handling Section */}
         {error && (
           <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert">
             <p>{error}</p>
+            <button
+              className="mt-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              onClick={() => dispatch(clearError())} // clearError action dispatched
+            >
+              Clear Error
+            </button>
           </div>
         )}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
-            {/* Shipping Address */}
-            <div className="bg-white shadow-md rounded-lg p-6 mb-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <MapPin className="mr-2" /> Shipping Address
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">First Name</label>
-                  <input
-                    type="text"
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                    value={shippingAddress.first_name}
-                    onChange={(e) => setShippingAddress({ ...shippingAddress, first_name: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Last Name</label>
-                  <input
-                    type="text"
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                    value={shippingAddress.last_name}
-                    onChange={(e) => setShippingAddress({ ...shippingAddress, last_name: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Email</label>
-                  <input
-                    type="email"
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                    value={shippingAddress.email}
-                    onChange={(e) => setShippingAddress({ ...shippingAddress, email: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Phone Number</label>
-                  <input
-                    type="text"
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                    value={shippingAddress.phone_number}
-                    onChange={(e) => setShippingAddress({ ...shippingAddress, phone_number: e.target.value })}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">Address</label>
-                  <input
-                    type="text"
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                    value={shippingAddress.line1}
-                    onChange={(e) => setShippingAddress({ ...shippingAddress, line1: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Apartment, suite, etc. (optional)</label>
-                  <input
-                    type="text"
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                    value={shippingAddress.line2 || ''}
-                    onChange={(e) => setShippingAddress({ ...shippingAddress, line2: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">City</label>
-                  <input
-                    type="text"
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                    value={shippingAddress.city}
-                    onChange={(e) => setShippingAddress({ ...shippingAddress, city: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">State</label>
-                  <input
-                    type="text"
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                    value={shippingAddress.state}
-                    onChange={(e) => setShippingAddress({ ...shippingAddress, state: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Postal Code (optional)</label>
-                  <input
-                    type="text"
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                    value={shippingAddress.postal_code || ''}
-                    onChange={(e) => setShippingAddress({ ...shippingAddress, postal_code: e.target.value })}
-                  />
-                </div>
-              </div>
-              <button
-                className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-                onClick={() => {
-                  setTempAddress(shippingAddress);
-                  setIsModalOpen(true);
-                }}
-              >
-                Save Address
-              </button>
-            </div>
-
-            {/* Billing Address */}
-            <div className="bg-white shadow-md rounded-lg p-6 mb-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Shield className="mr-2" /> Billing Address
-              </h2>
-              <label className="flex items-center mb-4">
-                <input
-                  type="checkbox"
-                  checked={sameBillingAddress}
-                  onChange={(e) => setSameBillingAddress(e.target.checked)}
-                  className="mr-2"
-                />
-                Same as shipping address
-              </label>
-              {!sameBillingAddress && (
+        {cartItems.length === 0 && !isLoading && (
+          <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4" role="alert">
+            <p>Your cart is empty. Please add items to proceed.</p>
+            <button
+              className="mt-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              onClick={() => navigate('/products')}
+            >
+              Shop Now
+            </button>
+          </div>
+        )}
+        {cartItems.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2">
+              {/* Shipping Address */}
+              <div className="bg-white shadow-md rounded-lg p-6 mb-6">
+                <h2 className="text-xl font-semibold mb-4 flex items-center">
+                  <MapPin className="mr-2" /> Shipping Address
+                </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">First Name</label>
                     <input
                       type="text"
                       className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                      value={billingAddress.first_name}
-                      onChange={(e) => setBillingAddress({ ...billingAddress, first_name: e.target.value })}
+                      value={shippingAddress.first_name}
+                      onChange={(e) => setShippingAddress({ ...shippingAddress, first_name: e.target.value })}
                     />
                   </div>
                   <div>
@@ -530,8 +453,8 @@ export const Checkout: React.FC = () => {
                     <input
                       type="text"
                       className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                      value={billingAddress.last_name}
-                      onChange={(e) => setBillingAddress({ ...billingAddress, last_name: e.target.value })}
+                      value={shippingAddress.last_name}
+                      onChange={(e) => setShippingAddress({ ...shippingAddress, last_name: e.target.value })}
                     />
                   </div>
                   <div>
@@ -539,8 +462,8 @@ export const Checkout: React.FC = () => {
                     <input
                       type="email"
                       className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                      value={billingAddress.email}
-                      onChange={(e) => setBillingAddress({ ...billingAddress, email: e.target.value })}
+                      value={shippingAddress.email}
+                      onChange={(e) => setShippingAddress({ ...shippingAddress, email: e.target.value })}
                     />
                   </div>
                   <div>
@@ -548,8 +471,8 @@ export const Checkout: React.FC = () => {
                     <input
                       type="text"
                       className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                      value={billingAddress.phone_number}
-                      onChange={(e) => setBillingAddress({ ...billingAddress, phone_number: e.target.value })}
+                      value={shippingAddress.phone_number}
+                      onChange={(e) => setShippingAddress({ ...shippingAddress, phone_number: e.target.value })}
                     />
                   </div>
                   <div className="md:col-span-2">
@@ -557,8 +480,8 @@ export const Checkout: React.FC = () => {
                     <input
                       type="text"
                       className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                      value={billingAddress.line1}
-                      onChange={(e) => setBillingAddress({ ...billingAddress, line1: e.target.value })}
+                      value={shippingAddress.line1}
+                      onChange={(e) => setShippingAddress({ ...shippingAddress, line1: e.target.value })}
                     />
                   </div>
                   <div>
@@ -566,8 +489,8 @@ export const Checkout: React.FC = () => {
                     <input
                       type="text"
                       className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                      value={billingAddress.line2 || ''}
-                      onChange={(e) => setBillingAddress({ ...billingAddress, line2: e.target.value })}
+                      value={shippingAddress.line2 || ''}
+                      onChange={(e) => setShippingAddress({ ...shippingAddress, line2: e.target.value })}
                     />
                   </div>
                   <div>
@@ -575,8 +498,8 @@ export const Checkout: React.FC = () => {
                     <input
                       type="text"
                       className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                      value={billingAddress.city}
-                      onChange={(e) => setBillingAddress({ ...billingAddress, city: e.target.value })}
+                      value={shippingAddress.city}
+                      onChange={(e) => setShippingAddress({ ...shippingAddress, city: e.target.value })}
                     />
                   </div>
                   <div>
@@ -584,8 +507,8 @@ export const Checkout: React.FC = () => {
                     <input
                       type="text"
                       className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                      value={billingAddress.state}
-                      onChange={(e) => setBillingAddress({ ...billingAddress, state: e.target.value })}
+                      value={shippingAddress.state}
+                      onChange={(e) => setShippingAddress({ ...shippingAddress, state: e.target.value })}
                     />
                   </div>
                   <div>
@@ -593,117 +516,229 @@ export const Checkout: React.FC = () => {
                     <input
                       type="text"
                       className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                      value={billingAddress.postal_code || ''}
-                      onChange={(e) => setBillingAddress({ ...billingAddress, postal_code: e.target.value })}
+                      value={shippingAddress.postal_code || ''}
+                      onChange={(e) => setShippingAddress({ ...shippingAddress, postal_code: e.target.value })}
                     />
                   </div>
                 </div>
-              )}
-            </div>
+                <button
+                  className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                  onClick={() => {
+                    setTempAddress(shippingAddress);
+                    setIsModalOpen(true);
+                  }}
+                >
+                  Save Address
+                </button>
+              </div>
 
-            {/* Order Items */}
-            <div className="bg-white shadow-md rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Package className="mr-2" /> Order Items
-              </h2>
-              {cartItems.length === 0 && !isLoading && (
-                <p className="text-gray-500">Your cart is empty.</p>
-              )}
-              {cartItems.map((item) => (
-                <div key={item.id} className="flex items-center border-b py-4">
-                  <img
-                    src={item.product.image || 'https://via.placeholder.com/100'}
-                    alt={item.product.name}
-                    className="w-20 h-20 object-cover rounded mr-4"
+              {/* Billing Address */}
+              <div className="bg-white shadow-md rounded-lg p-6 mb-6">
+                <h2 className="text-xl font-semibold mb-4 flex items-center">
+                  <Shield className="mr-2" /> Billing Address
+                </h2>
+                <label className="flex items-center mb-4">
+                  <input
+                    type="checkbox"
+                    checked={sameBillingAddress}
+                    onChange={(e) => setSameBillingAddress(e.target.checked)}
+                    className="mr-2"
                   />
-                  <div className="flex-1">
-                    <h3 className="text-lg font-medium">{item.product.name}</h3>
-                    <p className="text-gray-600">
-                      KSh {Number(item.product.price).toFixed(2)}
-                    </p>
-                    <div className="flex items-center mt-2">
-                      <button
-                        className="p-1 bg-gray-200 rounded"
-                        onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                        disabled={item.quantity <= 1}
-                      >
-                        <Minus size={16} />
-                      </button>
-                      <span className="mx-2">{item.quantity}</span>
-                      <button
-                        className="p-1 bg-gray-200 rounded"
-                        onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                        disabled={item.quantity >= item.product.stock}
-                      >
-                        <Plus size={16} />
-                      </button>
-                      <button
-                        className="ml-4 text-red-600"
-                        onClick={() => handleRemoveItem(item.id)}
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                  Same as shipping address
+                </label>
+                {!sameBillingAddress && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">First Name</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                        value={billingAddress.first_name}
+                        onChange={(e) => setBillingAddress({ ...billingAddress, first_name: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Last Name</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                        value={billingAddress.last_name}
+                        onChange={(e) => setBillingAddress({ ...billingAddress, last_name: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Email</label>
+                      <input
+                        type="email"
+                        className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                        value={billingAddress.email}
+                        onChange={(e) => setBillingAddress({ ...billingAddress, email: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Phone Number</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                        value={billingAddress.phone_number}
+                        onChange={(e) => setBillingAddress({ ...billingAddress, phone_number: e.target.value })}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700">Address</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                        value={billingAddress.line1}
+                        onChange={(e) => setBillingAddress({ ...billingAddress, line1: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Apartment, suite, etc. (optional)</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                        value={billingAddress.line2 || ''}
+                        onChange={(e) => setBillingAddress({ ...billingAddress, line2: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">City</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                        value={billingAddress.city}
+                        onChange={(e) => setBillingAddress({ ...billingAddress, city: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">State</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                        value={billingAddress.state}
+                        onChange={(e) => setBillingAddress({ ...billingAddress, state: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Postal Code (optional)</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                        value={billingAddress.postal_code || ''}
+                        onChange={(e) => setBillingAddress({ ...billingAddress, postal_code: e.target.value })}
+                      />
                     </div>
                   </div>
-                  <p className="text-lg font-medium">
-                    KSh {(Number(item.product.price) * item.quantity).toFixed(2)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Order Summary */}
-          <div className="lg:col-span-1">
-            <div className="bg-white shadow-md rounded-lg p-6 sticky top-4">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Check className="mr-2" /> Order Summary
-              </h2>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span>Subtotal</span>
-                  <span>KSh {total.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Tax (8%)</span>
-                  <span>KSh {orderCalculations.tax.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Shipping</span>
-                  <span>KSh {orderCalculations.shipping.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between font-semibold text-lg">
-                  <span>Total</span>
-                  <span>KSh {orderCalculations.finalTotal.toFixed(2)}</span>
-                </div>
-              </div>
-              <button
-                className={`mt-6 w-full bg-green-600 text-white py-3 rounded-md flex items-center justify-center ${
-                  isProcessing || !validateForm() ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'
-                }`}
-                onClick={handlePaystackPayment}
-                disabled={isProcessing || cartItems.length === 0 || !validateForm()}
-              >
-                {isProcessing ? (
-                  'Processing...'
-                ) : (
-                  <>
-                    <Truck className="mr-2" /> Proceed to Payment
-                  </>
                 )}
-              </button>
-              {debugInfo.length > 0 && (
-                <div className="mt-4 text-sm text-gray-500">
-                  <p className="font-semibold">Debug Info:</p>
-                  {debugInfo.map((info, index) => (
-                    <p key={index}>{info}</p>
-                  ))}
+              </div>
+
+              {/* Order Items */}
+              <div className="bg-white shadow-md rounded-lg p-6">
+                <h2 className="text-xl font-semibold mb-4 flex items-center">
+                  <Package className="mr-2" /> Order Items
+                </h2>
+                {cartItems.map((item) => (
+                  <div key={item.id} className="flex items-center border-b py-4">
+                    <img
+                      src={item.product.image || 'https://via.placeholder.com/100'}
+                      alt={item.product.name}
+                      className="w-20 h-20 object-cover rounded mr-4"
+                      onError={(e) => {
+                        e.currentTarget.src = 'https://via.placeholder.com/100';
+                        addDebugInfo(`Image failed to load: ${item.product.image}`);
+                      }}
+                    />
+                    <div className="flex-1">
+                      <h3 className="text-lg font-medium">{item.product.name}</h3>
+                      <p className="text-gray-600">
+                        KSh {Number(item.product.price || 0).toFixed(2)}
+                      </p>
+                      <div className="flex items-center mt-2">
+                        <button
+                          className="p-1 bg-gray-200 rounded"
+                          onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                          disabled={item.quantity <= 1}
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <span className="mx-2">{item.quantity}</span>
+                        <button
+                          className="p-1 bg-gray-200 rounded"
+                          onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                          disabled={item.quantity >= (item.product.stock || Infinity)}
+                        >
+                          <Plus size={16} />
+                        </button>
+                        <button
+                          className="ml-4 text-red-600"
+                          onClick={() => handleRemoveItem(item.id)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-lg font-medium">
+                      KSh {(Number(item.product.price || 0) * item.quantity).toFixed(2)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Order Summary */}
+            <div className="lg:col-span-1">
+              <div className="bg-white shadow-md rounded-lg p-6 sticky top-4">
+                <h2 className="text-xl font-semibold mb-4 flex items-center">
+                  <Check className="mr-2" /> Order Summary
+                </h2>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>Subtotal</span>
+                    <span>KSh {Number(total || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Tax (8%)</span>
+                    <span>KSh {Number(orderCalculations.tax || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Shipping</span>
+                    <span>KSh {Number(orderCalculations.shipping || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold text-lg">
+                    <span>Total</span>
+                    <span>KSh {Number(orderCalculations.finalTotal || 0).toFixed(2)}</span>
+                  </div>
                 </div>
-              )}
+                <button
+                  className={`mt-6 w-full bg-green-600 text-white py-3 rounded-md flex items-center justify-center ${
+                    isProcessing || !validateForm() || cartItems.length === 0
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'hover:bg-green-700'
+                  }`}
+                  onClick={handlePaystackPayment}
+                  disabled={isProcessing || cartItems.length === 0 || !validateForm()}
+                >
+                  {isProcessing ? (
+                    'Processing...'
+                  ) : (
+                    <>
+                      <Truck className="mr-2" /> Proceed to Payment
+                    </>
+                  )}
+                </button>
+                {debugInfo.length > 0 && (
+                  <div className="mt-4 text-sm text-gray-500">
+                    <p className="font-semibold">Debug Info:</p>
+                    {debugInfo.map((info, index) => (
+                      <p key={index}>{info}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-
+        )}
         {/* Address Modal */}
         <Transition appear show={isModalOpen} as={Fragment}>
           <Dialog as="div" className="relative z-10" onClose={() => setIsModalOpen(false)}>

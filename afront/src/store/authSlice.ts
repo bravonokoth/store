@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import api, { authAPI } from '../services/api';
+import { api, authAPI } from '../services/api'; // Import both api and authAPI as named exports
 
 interface User {
   id: string;
@@ -31,7 +31,7 @@ export const login = createAsyncThunk(
   'auth/login',
   async (credentials: { email: string; password: string }, { rejectWithValue }) => {
     try {
-      await api.get('/sanctum/csrf-cookie');
+      await api.get('/sanctum/csrf-cookie'); // Use api.get
       const response = await authAPI.login(credentials);
       const { access_token, role } = response.data;
       const user = {
@@ -57,7 +57,7 @@ export const register = createAsyncThunk(
   'auth/register',
   async (userData: any, { rejectWithValue }) => {
     try {
-      await api.get('/sanctum/csrf-cookie');
+      await api.get('/sanctum/csrf-cookie'); // Use api.get
       const response = await authAPI.register(userData);
       const { user, token } = response.data;
 
@@ -75,7 +75,7 @@ export const register = createAsyncThunk(
 
 export const logout = createAsyncThunk('auth/logout', async (_, { rejectWithValue }) => {
   try {
-    await api.get('/sanctum/csrf-cookie');
+    await api.get('/sanctum/csrf-cookie'); // Use api.get
     await authAPI.logout();
   } catch (error: any) {
     return rejectWithValue('Logout failed');
@@ -90,6 +90,7 @@ export const updateProfile = createAsyncThunk(
   'auth/updateProfile',
   async (profileData: any, { rejectWithValue }) => {
     try {
+      await api.get('/sanctum/csrf-cookie'); // Use api.get
       const response = await authAPI.updateProfile(profileData);
       const { user } = response.data;
 

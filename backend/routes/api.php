@@ -35,7 +35,6 @@ Route::options('{any}', function () {
     ];
     
     $allowOrigin = in_array($origin, $allowedOrigins) ? $origin : 'https://store-one-olive.vercel.app';
-    // 'http://localhost:5173';
     
     return response()->json([], 204)
         ->header('Access-Control-Allow-Origin', $allowOrigin)
@@ -64,12 +63,15 @@ Route::get('/checkout', [CheckoutController::class, 'index']);
 Route::post('/payment/initiate', [PaymentController::class, 'initialize']);
 Route::get('/payment/callback', [PaymentController::class, 'callback']);
 
-
 Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/categories/{category}', [CategoryController::class, 'show']);
 
 Route::post('/cart', [CartController::class, 'store']);
 Route::get('/cart', [CartController::class, 'index']);
+Route::put('/cart/{id}', [CartController::class, 'update']);
+Route::delete('/cart/{id}', [CartController::class, 'destroy']);
+Route::delete('/cart', [CartController::class, 'clear']); // Added clear route
+
 Route::post('/orders', [OrderController::class, 'store']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/orders', [OrderController::class, 'index']);

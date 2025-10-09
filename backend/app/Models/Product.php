@@ -14,6 +14,14 @@ class Product extends Model
         'discount_price', 'stock', 'sku', 'seo_title', 'seo_description', 'is_active', 'is_featured',
     ];
 
+    protected $casts = [
+        'price' => 'float',
+        'discount_price' => 'float',
+        'stock' => 'integer',
+        'is_active' => 'boolean',
+        'is_featured' => 'boolean',
+    ];
+
     public function category()
     {
         return $this->belongsTo(Category::class);
