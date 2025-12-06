@@ -321,7 +321,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Bravon Okoth**
 - GitHub: [@bravonokoth](https://github.com/bravonokoth)
-- Email: bravon@example.com
+- Email: bravonoorwa@gmail.com
 
 ---
 
